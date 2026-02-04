@@ -3,6 +3,7 @@
 package neosync
 
 import (
+	"atvenupgstream/pkg/transformers"
 	"context"
 	"errors"
 	"fmt"
@@ -10,7 +11,6 @@ import (
 	neosynctransformers "github.com/nucleuscloud/neosync/worker/pkg/benthos/transformers"
 	transformer_utils "github.com/nucleuscloud/neosync/worker/pkg/benthos/transformers/utils"
 	"github.com/nucleuscloud/neosync/worker/pkg/rng"
-	"github.com/xataio/pgstream/pkg/transformers"
 )
 
 type FullNameTransformer struct {

@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jackc/pgx/v5/pgtype"
-	pglib "github.com/xataio/pgstream/internal/postgres"
+	pglib "atvenupgstream/internal/postgres"
+	"github.com/atvenu/pgx/pgtype"
 )
 
 type PGAnonymizerTransformer struct {

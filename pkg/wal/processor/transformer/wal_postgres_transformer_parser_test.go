@@ -3,17 +3,17 @@
 package transformer
 
 import (
+	"atvenupgstream/pkg/transformers/builder"
 	"context"
 	"errors"
 	"fmt"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
+	pglib "atvenupgstream/internal/postgres"
+	pgmocks "atvenupgstream/internal/postgres/mocks"
+	"github.com/atvenu/pgx/pgconn"
+	"github.com/atvenu/pgx/pgtype"
 	"github.com/stretchr/testify/require"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	pgmocks "github.com/xataio/pgstream/internal/postgres/mocks"
-	"github.com/xataio/pgstream/pkg/transformers/builder"
 )
 
 func TestPostgresTransformerParser_ParseAndValidate(t *testing.T) {

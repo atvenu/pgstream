@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	pglibmocks "github.com/xataio/pgstream/internal/postgres/mocks"
+	pglibmocks "atvenupgstream/internal/postgres/mocks"
 
 	"github.com/stretchr/testify/require"
 )

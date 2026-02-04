@@ -3,13 +3,13 @@
 package postgres
 
 import (
+	"atvenupgstream/internal/postgres"
+	"atvenupgstream/pkg/snapshot"
+	"atvenupgstream/pkg/snapshot/store"
 	"context"
 	"fmt"
 
 	"github.com/lib/pq"
-	"github.com/xataio/pgstream/internal/postgres"
-	"github.com/xataio/pgstream/pkg/snapshot"
-	"github.com/xataio/pgstream/pkg/snapshot/store"
 )
 
 type Store struct {

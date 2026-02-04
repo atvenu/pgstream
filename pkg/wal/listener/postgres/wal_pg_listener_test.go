@@ -3,6 +3,9 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/log"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/replication"
 	"context"
 	"errors"
 	"fmt"
@@ -11,10 +14,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/replication"
-	replicationmocks "github.com/xataio/pgstream/pkg/wal/replication/mocks"
+
+	replicationmocks "atvenupgstream/pkg/wal/replication/mocks"
 )
 
 func TestListener_Listen(t *testing.T) {

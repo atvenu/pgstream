@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
+	pglib "atvenupgstream/internal/postgres"
 )
 
 type optionGenerator struct {

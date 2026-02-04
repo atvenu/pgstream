@@ -3,13 +3,13 @@
 package greenmask
 
 import (
+	"atvenupgstream/pkg/transformers"
 	"context"
 	"testing"
 
 	greenmasktransformers "github.com/eminano/greenmask/pkg/generators/transformers"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/transformers"
 )
 
 func Test_NewFloatTransformer(t *testing.T) {

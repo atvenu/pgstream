@@ -3,27 +3,30 @@
 package builder
 
 import (
+	"atvenupgstream/pkg/otel"
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/snapshot/generator"
+	"atvenupgstream/pkg/wal/listener"
+	"atvenupgstream/pkg/wal/listener/snapshot/adapter"
 	"context"
 	"errors"
 	"fmt"
 
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/otel"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	schemaloginstrumentation "github.com/xataio/pgstream/pkg/schemalog/instrumentation"
-	schemalogpg "github.com/xataio/pgstream/pkg/schemalog/postgres"
-	"github.com/xataio/pgstream/pkg/snapshot/generator"
-	generatorinstrumentation "github.com/xataio/pgstream/pkg/snapshot/generator/instrumentation"
-	pgsnapshotgenerator "github.com/xataio/pgstream/pkg/snapshot/generator/postgres/data"
-	pgdumprestoregenerator "github.com/xataio/pgstream/pkg/snapshot/generator/postgres/schema/pgdumprestore"
-	schemalogsnapshotgenerator "github.com/xataio/pgstream/pkg/snapshot/generator/postgres/schema/schemalog"
-	pgtablefinder "github.com/xataio/pgstream/pkg/snapshot/generator/postgres/tablefinder"
-	snapshotstore "github.com/xataio/pgstream/pkg/snapshot/store"
-	snapshotstoreinstrumentation "github.com/xataio/pgstream/pkg/snapshot/store/instrumentation"
-	pgsnapshotstore "github.com/xataio/pgstream/pkg/snapshot/store/postgres"
-	"github.com/xataio/pgstream/pkg/wal/listener"
-	listenersnapshot "github.com/xataio/pgstream/pkg/wal/listener/snapshot"
-	"github.com/xataio/pgstream/pkg/wal/listener/snapshot/adapter"
+	loglib "atvenupgstream/pkg/log"
+
+	schemaloginstrumentation "atvenupgstream/pkg/schemalog/instrumentation"
+	schemalogpg "atvenupgstream/pkg/schemalog/postgres"
+
+	generatorinstrumentation "atvenupgstream/pkg/snapshot/generator/instrumentation"
+	pgsnapshotgenerator "atvenupgstream/pkg/snapshot/generator/postgres/data"
+	pgdumprestoregenerator "atvenupgstream/pkg/snapshot/generator/postgres/schema/pgdumprestore"
+	schemalogsnapshotgenerator "atvenupgstream/pkg/snapshot/generator/postgres/schema/schemalog"
+	pgtablefinder "atvenupgstream/pkg/snapshot/generator/postgres/tablefinder"
+	snapshotstore "atvenupgstream/pkg/snapshot/store"
+	snapshotstoreinstrumentation "atvenupgstream/pkg/snapshot/store/instrumentation"
+	pgsnapshotstore "atvenupgstream/pkg/snapshot/store/postgres"
+
+	listenersnapshot "atvenupgstream/pkg/wal/listener/snapshot"
 )
 
 var errSchemaSnapshotNotConfigured = errors.New("no schema snapshot has been configured")

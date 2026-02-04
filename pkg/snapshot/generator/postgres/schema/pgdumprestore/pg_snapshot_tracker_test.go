@@ -3,6 +3,7 @@
 package pgdumprestore
 
 import (
+	"atvenupgstream/internal/progress"
 	"context"
 	"errors"
 	"sync/atomic"
@@ -12,11 +13,11 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	pglibmocks "github.com/xataio/pgstream/internal/postgres/mocks"
-	"github.com/xataio/pgstream/internal/progress"
-	progressmocks "github.com/xataio/pgstream/internal/progress/mocks"
-	synclib "github.com/xataio/pgstream/internal/sync"
+	pglib "atvenupgstream/internal/postgres"
+	pglibmocks "atvenupgstream/internal/postgres/mocks"
+
+	progressmocks "atvenupgstream/internal/progress/mocks"
+	synclib "atvenupgstream/internal/sync"
 )
 
 func TestSnapshotTracker_trackIndexesCreation(t *testing.T) {

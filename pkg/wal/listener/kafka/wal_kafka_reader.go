@@ -3,14 +3,14 @@
 package kafka
 
 import (
+	"atvenupgstream/internal/json"
+	"atvenupgstream/pkg/kafka"
+	"atvenupgstream/pkg/wal"
 	"context"
 	"errors"
 	"fmt"
 
-	"github.com/xataio/pgstream/internal/json"
-	"github.com/xataio/pgstream/pkg/kafka"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal"
+	loglib "atvenupgstream/pkg/log"
 )
 
 // Reader is a kafka reader that listens to wal events.

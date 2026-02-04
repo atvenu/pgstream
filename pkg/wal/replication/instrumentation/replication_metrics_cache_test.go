@@ -3,6 +3,8 @@
 package instrumentation
 
 import (
+	"atvenupgstream/pkg/wal/replication"
+	"atvenupgstream/pkg/wal/replication/mocks"
 	"context"
 	"errors"
 	"sync"
@@ -11,8 +13,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/wal/replication"
-	"github.com/xataio/pgstream/pkg/wal/replication/mocks"
 )
 
 func TestMetricsCache_GetReplicationLag(t *testing.T) {

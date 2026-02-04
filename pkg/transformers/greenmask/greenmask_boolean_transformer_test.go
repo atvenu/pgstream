@@ -3,11 +3,11 @@
 package greenmask
 
 import (
+	"atvenupgstream/pkg/transformers"
 	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/transformers"
 )
 
 func Test_NewBooleanTransformer(t *testing.T) {

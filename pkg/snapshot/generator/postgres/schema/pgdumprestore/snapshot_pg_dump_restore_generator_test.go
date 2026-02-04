@@ -3,6 +3,11 @@
 package pgdumprestore
 
 import (
+	"atvenupgstream/internal/postgres/mocks"
+	"atvenupgstream/pkg/log"
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/snapshot"
+	"atvenupgstream/pkg/snapshot/generator"
 	"context"
 	"errors"
 	"fmt"
@@ -10,15 +15,12 @@ import (
 	"strings"
 	"testing"
 
+	pglib "atvenupgstream/internal/postgres"
 	"github.com/stretchr/testify/require"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	"github.com/xataio/pgstream/internal/postgres/mocks"
-	"github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	schemalogmocks "github.com/xataio/pgstream/pkg/schemalog/mocks"
-	"github.com/xataio/pgstream/pkg/snapshot"
-	"github.com/xataio/pgstream/pkg/snapshot/generator"
-	generatormocks "github.com/xataio/pgstream/pkg/snapshot/generator/mocks"
+
+	schemalogmocks "atvenupgstream/pkg/schemalog/mocks"
+
+	generatormocks "atvenupgstream/pkg/snapshot/generator/mocks"
 )
 
 func TestSnapshotGenerator_CreateSnapshot(t *testing.T) {

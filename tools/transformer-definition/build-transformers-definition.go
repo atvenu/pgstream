@@ -3,14 +3,13 @@
 package main
 
 import (
+	"atvenupgstream/pkg/transformers"
+	"atvenupgstream/pkg/transformers/builder"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"sort"
-
-	"github.com/xataio/pgstream/pkg/transformers"
-	"github.com/xataio/pgstream/pkg/transformers/builder"
 )
 
 type Result struct {

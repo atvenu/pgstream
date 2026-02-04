@@ -3,10 +3,10 @@
 package neosync
 
 import (
+	"atvenupgstream/pkg/transformers"
 	"fmt"
 
 	neosynctransformers "github.com/nucleuscloud/neosync/worker/pkg/benthos/transformers"
-	"github.com/xataio/pgstream/pkg/transformers"
 )
 
 type StringTransformer struct {

@@ -3,9 +3,8 @@
 package mocks
 
 import (
+	"atvenupgstream/pkg/wal/processor/batch"
 	"context"
-
-	"github.com/xataio/pgstream/pkg/wal/processor/batch"
 )
 
 type BatchSender[T batch.Message] struct {

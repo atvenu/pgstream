@@ -3,6 +3,8 @@
 package cmd
 
 import (
+	"atvenupgstream/cmd/config"
+	"atvenupgstream/pkg/stream"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -12,9 +14,6 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-
-	"github.com/xataio/pgstream/cmd/config"
-	"github.com/xataio/pgstream/pkg/stream"
 )
 
 var statusCmd = &cobra.Command{

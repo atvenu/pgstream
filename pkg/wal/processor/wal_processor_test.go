@@ -3,6 +3,8 @@
 package processor
 
 import (
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal"
 	"testing"
 	"time"
 
@@ -10,8 +12,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal"
 )
 
 func Test_WalDataToLogEntry(t *testing.T) {

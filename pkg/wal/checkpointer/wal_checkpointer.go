@@ -3,9 +3,8 @@
 package checkpointer
 
 import (
+	"atvenupgstream/pkg/wal"
 	"context"
-
-	"github.com/xataio/pgstream/pkg/wal"
 )
 
 // Checkpoint defines the way to confirm the positions that have been read.

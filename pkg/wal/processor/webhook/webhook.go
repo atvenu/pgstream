@@ -2,7 +2,7 @@
 
 package webhook
 
-import "github.com/xataio/pgstream/pkg/wal"
+import "atvenupgstream/pkg/wal"
 
 type Payload struct {
 	Data *wal.Data

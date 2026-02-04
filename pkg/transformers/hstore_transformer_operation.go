@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"text/template"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/atvenu/pgx/pgtype"
 )
 
 type hstoreOperation struct {

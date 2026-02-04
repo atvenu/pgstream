@@ -3,17 +3,18 @@
 package transformer
 
 import (
+	"atvenupgstream/pkg/log"
+	"atvenupgstream/pkg/transformers"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/processor"
+	"atvenupgstream/pkg/wal/processor/mocks"
 	"context"
 	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/transformers"
-	transformermocks "github.com/xataio/pgstream/pkg/transformers/mocks"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/processor"
-	"github.com/xataio/pgstream/pkg/wal/processor/mocks"
+
+	transformermocks "atvenupgstream/pkg/transformers/mocks"
 )
 
 func TestTransformer_New(t *testing.T) {

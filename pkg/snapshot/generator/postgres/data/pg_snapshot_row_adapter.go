@@ -3,12 +3,12 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/wal"
 	"context"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgconn"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal"
+	loglib "atvenupgstream/pkg/log"
+	"github.com/atvenu/pgx/pgconn"
 )
 
 type adapter struct {

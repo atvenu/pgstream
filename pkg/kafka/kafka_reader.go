@@ -6,8 +6,8 @@ import (
 	"context"
 	"fmt"
 
+	loglib "atvenupgstream/pkg/log"
 	"github.com/segmentio/kafka-go"
-	loglib "github.com/xataio/pgstream/pkg/log"
 )
 
 type MessageReader interface {

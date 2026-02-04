@@ -3,15 +3,15 @@
 package postgres
 
 import (
+	"atvenupgstream/internal/testcontainers"
+	"atvenupgstream/pkg/snapshot"
+	"atvenupgstream/pkg/wal"
 	"context"
 	"fmt"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/internal/testcontainers"
-	"github.com/xataio/pgstream/pkg/snapshot"
-	"github.com/xataio/pgstream/pkg/wal"
 )
 
 func Test_PostgresSnapshotGenerator(t *testing.T) {

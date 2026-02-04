@@ -3,10 +3,10 @@
 package builder
 
 import (
-	schemalogpg "github.com/xataio/pgstream/pkg/schemalog/postgres"
-	pgsnapshotgenerator "github.com/xataio/pgstream/pkg/snapshot/generator/postgres/data"
-	"github.com/xataio/pgstream/pkg/snapshot/generator/postgres/schema/pgdumprestore"
-	"github.com/xataio/pgstream/pkg/wal/listener/snapshot/adapter"
+	schemalogpg "atvenupgstream/pkg/schemalog/postgres"
+	pgsnapshotgenerator "atvenupgstream/pkg/snapshot/generator/postgres/data"
+	"atvenupgstream/pkg/snapshot/generator/postgres/schema/pgdumprestore"
+	"atvenupgstream/pkg/wal/listener/snapshot/adapter"
 )
 
 type SnapshotListenerConfig struct {

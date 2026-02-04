@@ -3,6 +3,7 @@
 package transformer
 
 import (
+	"atvenupgstream/pkg/transformers"
 	"context"
 	"errors"
 	"fmt"
@@ -10,9 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/transformers"
+	pglib "atvenupgstream/internal/postgres"
+	loglib "atvenupgstream/pkg/log"
+
 	"gopkg.in/yaml.v3"
 )
 

@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	mathlib "github.com/xataio/pgstream/internal/math"
-	loglib "github.com/xataio/pgstream/pkg/log"
+	mathlib "atvenupgstream/internal/math"
+	loglib "atvenupgstream/pkg/log"
 )
 
 // batchBytesTuner tunes the batch bytes size based on observed throughput using

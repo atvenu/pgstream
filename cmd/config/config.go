@@ -3,16 +3,17 @@
 package config
 
 import (
+	"atvenupgstream/pkg/otel"
+	"atvenupgstream/pkg/stream"
+	"atvenupgstream/pkg/wal/processor/batch"
+	"atvenupgstream/pkg/wal/processor/transformer"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/spf13/viper"
-	"github.com/xataio/pgstream/pkg/otel"
-	"github.com/xataio/pgstream/pkg/stream"
-	"github.com/xataio/pgstream/pkg/wal/processor/batch"
-	"github.com/xataio/pgstream/pkg/wal/processor/transformer"
+
 	"gopkg.in/yaml.v3"
 )
 

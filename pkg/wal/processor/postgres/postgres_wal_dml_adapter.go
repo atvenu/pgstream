@@ -3,17 +3,18 @@
 package postgres
 
 import (
+	"atvenupgstream/internal/json"
+	"atvenupgstream/pkg/wal"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/xataio/pgstream/internal/json"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal"
+	"github.com/atvenu/pgx/pgtype"
+
+	pglib "atvenupgstream/internal/postgres"
+	loglib "atvenupgstream/pkg/log"
 )
 
 type onConflictAction uint

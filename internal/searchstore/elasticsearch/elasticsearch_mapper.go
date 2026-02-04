@@ -3,7 +3,7 @@
 package elasticsearch
 
 import (
-	"github.com/xataio/pgstream/internal/searchstore"
+	"atvenupgstream/internal/searchstore"
 )
 
 type Mapper struct{}

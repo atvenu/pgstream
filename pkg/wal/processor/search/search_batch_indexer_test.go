@@ -3,18 +3,19 @@
 package search
 
 import (
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/checkpointer"
+	"atvenupgstream/pkg/wal/processor"
+	"atvenupgstream/pkg/wal/processor/batch"
 	"context"
 	"fmt"
 	"testing"
 	"time"
 
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/checkpointer"
-	"github.com/xataio/pgstream/pkg/wal/processor"
-	"github.com/xataio/pgstream/pkg/wal/processor/batch"
-	batchmocks "github.com/xataio/pgstream/pkg/wal/processor/batch/mocks"
+	loglib "atvenupgstream/pkg/log"
+
+	batchmocks "atvenupgstream/pkg/wal/processor/batch/mocks"
 
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"

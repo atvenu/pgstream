@@ -3,12 +3,12 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/processor"
 	"context"
 
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/processor"
+	loglib "atvenupgstream/pkg/log"
 )
 
 type walAdapter interface {

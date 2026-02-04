@@ -3,9 +3,8 @@
 package store
 
 import (
+	"atvenupgstream/pkg/snapshot"
 	"context"
-
-	"github.com/xataio/pgstream/pkg/snapshot"
 )
 
 type Store interface {

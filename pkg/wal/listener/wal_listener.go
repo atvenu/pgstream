@@ -3,9 +3,8 @@
 package listener
 
 import (
+	"atvenupgstream/pkg/wal"
 	"context"
-
-	"github.com/xataio/pgstream/pkg/wal"
 )
 
 // Listener represents a process that listens to WAL events.

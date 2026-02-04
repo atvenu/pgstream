@@ -3,13 +3,12 @@
 package builder
 
 import (
+	"atvenupgstream/pkg/otel"
+	"atvenupgstream/pkg/transformers"
+	"atvenupgstream/pkg/transformers/greenmask"
+	"atvenupgstream/pkg/transformers/instrumentation"
+	"atvenupgstream/pkg/transformers/neosync"
 	"fmt"
-
-	"github.com/xataio/pgstream/pkg/otel"
-	"github.com/xataio/pgstream/pkg/transformers"
-	"github.com/xataio/pgstream/pkg/transformers/greenmask"
-	"github.com/xataio/pgstream/pkg/transformers/instrumentation"
-	"github.com/xataio/pgstream/pkg/transformers/neosync"
 )
 
 type TransformerBuilder struct {

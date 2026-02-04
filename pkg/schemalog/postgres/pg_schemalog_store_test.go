@@ -3,18 +3,18 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/schemalog"
 	"context"
 	"errors"
 	"fmt"
 	"strings"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgconn"
+	pglib "atvenupgstream/internal/postgres"
+	pgmocks "atvenupgstream/internal/postgres/mocks"
+	"github.com/atvenu/pgx/pgconn"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	pgmocks "github.com/xataio/pgstream/internal/postgres/mocks"
-	"github.com/xataio/pgstream/pkg/schemalog"
 )
 
 func TestStore_FetchLast(t *testing.T) {

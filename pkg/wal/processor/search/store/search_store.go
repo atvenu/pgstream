@@ -3,18 +3,18 @@
 package store
 
 import (
+	"atvenupgstream/internal/json"
+	"atvenupgstream/internal/searchstore"
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal/processor/search"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
 
-	"github.com/xataio/pgstream/internal/json"
-	"github.com/xataio/pgstream/internal/searchstore"
-	elasticsearchstore "github.com/xataio/pgstream/internal/searchstore/elasticsearch"
-	opensearchstore "github.com/xataio/pgstream/internal/searchstore/opensearch"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal/processor/search"
+	elasticsearchstore "atvenupgstream/internal/searchstore/elasticsearch"
+	opensearchstore "atvenupgstream/internal/searchstore/opensearch"
+	loglib "atvenupgstream/pkg/log"
 )
 
 type Store struct {

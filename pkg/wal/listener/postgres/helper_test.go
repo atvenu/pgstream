@@ -3,11 +3,11 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/wal/replication"
 	"context"
 	"time"
 
-	"github.com/xataio/pgstream/pkg/wal/replication"
-	replicationmocks "github.com/xataio/pgstream/pkg/wal/replication/mocks"
+	replicationmocks "atvenupgstream/pkg/wal/replication/mocks"
 )
 
 const (

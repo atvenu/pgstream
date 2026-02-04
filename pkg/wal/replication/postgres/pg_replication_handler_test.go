@@ -3,16 +3,16 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/log"
+	"atvenupgstream/pkg/wal/replication"
 	"context"
 	"errors"
 	"fmt"
 	"testing"
 
+	pglib "atvenupgstream/internal/postgres"
+	pgmocks "atvenupgstream/internal/postgres/mocks"
 	"github.com/stretchr/testify/require"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	pgmocks "github.com/xataio/pgstream/internal/postgres/mocks"
-	"github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal/replication"
 )
 
 func TestHandler_StartReplication(t *testing.T) {

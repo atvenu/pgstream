@@ -3,6 +3,11 @@
 package notifier
 
 import (
+	"atvenupgstream/internal/json"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/checkpointer"
+	"atvenupgstream/pkg/wal/processor"
+	"atvenupgstream/pkg/wal/processor/webhook/subscription"
 	"bytes"
 	"context"
 	"errors"
@@ -12,14 +17,10 @@ import (
 	"runtime/debug"
 	"sync"
 
-	httplib "github.com/xataio/pgstream/internal/http"
-	"github.com/xataio/pgstream/internal/json"
-	synclib "github.com/xataio/pgstream/internal/sync"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/checkpointer"
-	"github.com/xataio/pgstream/pkg/wal/processor"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription"
+	httplib "atvenupgstream/internal/http"
+
+	synclib "atvenupgstream/internal/sync"
+	loglib "atvenupgstream/pkg/log"
 )
 
 // Notifier represents the process that notifies any subscribed webhooks when

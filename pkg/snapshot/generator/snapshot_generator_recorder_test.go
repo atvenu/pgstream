@@ -3,15 +3,16 @@
 package generator
 
 import (
+	"atvenupgstream/pkg/snapshot"
 	"context"
 	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/snapshot"
-	snapshotstore "github.com/xataio/pgstream/pkg/snapshot/store"
-	snapshotstoremocks "github.com/xataio/pgstream/pkg/snapshot/store/mocks"
+
+	snapshotstore "atvenupgstream/pkg/snapshot/store"
+	snapshotstoremocks "atvenupgstream/pkg/snapshot/store/mocks"
 )
 
 func TestSnapshotRecorder_CreateSnapshot(t *testing.T) {

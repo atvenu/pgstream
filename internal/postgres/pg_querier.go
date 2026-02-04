@@ -5,8 +5,8 @@ package postgres
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/atvenu/pgx"
+	"github.com/atvenu/pgx/pgconn"
 )
 
 type Querier interface {

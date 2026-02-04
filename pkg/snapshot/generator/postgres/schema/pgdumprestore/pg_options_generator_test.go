@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"testing"
 
+	pglib "atvenupgstream/internal/postgres"
+	pglibmocks "atvenupgstream/internal/postgres/mocks"
 	"github.com/stretchr/testify/require"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	pglibmocks "github.com/xataio/pgstream/internal/postgres/mocks"
 )
 
 func TestOptionsGenerator_pgdumpSequenceDataOptions(t *testing.T) {

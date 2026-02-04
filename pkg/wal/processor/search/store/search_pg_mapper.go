@@ -3,18 +3,17 @@
 package store
 
 import (
+	"atvenupgstream/internal/json"
+	"atvenupgstream/internal/searchstore"
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal/processor/search"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/atvenu/pgx/pgtype"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
-
-	"github.com/xataio/pgstream/internal/json"
-	"github.com/xataio/pgstream/internal/searchstore"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal/processor/search"
 )
 
 type PgMapper struct {

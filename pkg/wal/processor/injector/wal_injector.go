@@ -3,18 +3,19 @@
 package injector
 
 import (
+	"atvenupgstream/pkg/otel"
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/processor"
 	"context"
 	"errors"
 	"fmt"
 	"slices"
 
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/otel"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	schemaloginstrumentation "github.com/xataio/pgstream/pkg/schemalog/instrumentation"
-	schemalogpg "github.com/xataio/pgstream/pkg/schemalog/postgres"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/processor"
+	loglib "atvenupgstream/pkg/log"
+
+	schemaloginstrumentation "atvenupgstream/pkg/schemalog/instrumentation"
+	schemalogpg "atvenupgstream/pkg/schemalog/postgres"
 )
 
 // Injector is a decorator around a wal processor that injects the wal metadata

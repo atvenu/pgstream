@@ -3,6 +3,9 @@
 package kafka
 
 import (
+	"atvenupgstream/pkg/backoff"
+	"atvenupgstream/pkg/kafka"
+	"atvenupgstream/pkg/wal"
 	"context"
 	"errors"
 	"testing"
@@ -10,12 +13,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/xataio/pgstream/pkg/backoff"
-	backoffmocks "github.com/xataio/pgstream/pkg/backoff/mocks"
-	"github.com/xataio/pgstream/pkg/kafka"
-	kafkamocks "github.com/xataio/pgstream/pkg/kafka/mocks"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal"
+	backoffmocks "atvenupgstream/pkg/backoff/mocks"
+
+	kafkamocks "atvenupgstream/pkg/kafka/mocks"
+	loglib "atvenupgstream/pkg/log"
 )
 
 func TestCheckpointer_CommitOffsets(t *testing.T) {

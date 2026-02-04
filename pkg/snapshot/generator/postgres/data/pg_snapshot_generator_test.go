@@ -3,28 +3,31 @@
 package postgres
 
 import (
+	"atvenupgstream/internal/log/zerolog"
+	"atvenupgstream/internal/progress"
+	"atvenupgstream/pkg/snapshot"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/processor"
 	"context"
 	"errors"
 	"fmt"
 	"testing"
 
+	"github.com/atvenu/pgx/pgconn"
+	"github.com/atvenu/pgx/pgtype"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/internal/log/zerolog"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	pgmocks "github.com/xataio/pgstream/internal/postgres/mocks"
-	"github.com/xataio/pgstream/internal/progress"
-	progressmocks "github.com/xataio/pgstream/internal/progress/mocks"
-	synclib "github.com/xataio/pgstream/internal/sync"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/snapshot"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/processor"
-	processormocks "github.com/xataio/pgstream/pkg/wal/processor/mocks"
+
+	pglib "atvenupgstream/internal/postgres"
+	pgmocks "atvenupgstream/internal/postgres/mocks"
+
+	progressmocks "atvenupgstream/internal/progress/mocks"
+	synclib "atvenupgstream/internal/sync"
+	loglib "atvenupgstream/pkg/log"
+
+	processormocks "atvenupgstream/pkg/wal/processor/mocks"
 )
 
 func TestSnapshotGenerator_CreateSnapshot(t *testing.T) {

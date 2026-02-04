@@ -2,7 +2,7 @@
 
 package mocks
 
-import "github.com/xataio/pgstream/pkg/kafka"
+import "atvenupgstream/pkg/kafka"
 
 type OffsetParser struct {
 	ToStringFn   func(o *kafka.Offset) string

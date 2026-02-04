@@ -3,11 +3,10 @@
 package cmd
 
 import (
+	"atvenupgstream/cmd/config"
+	"atvenupgstream/pkg/stream"
 	"context"
 	"fmt"
-
-	"github.com/xataio/pgstream/cmd/config"
-	"github.com/xataio/pgstream/pkg/stream"
 
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/pterm/pterm"

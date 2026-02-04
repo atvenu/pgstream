@@ -3,15 +3,15 @@
 package filter
 
 import (
+	"atvenupgstream/internal/json"
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/processor"
 	"context"
 	"errors"
 
-	"github.com/xataio/pgstream/internal/json"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/processor"
+	pglib "atvenupgstream/internal/postgres"
+	loglib "atvenupgstream/pkg/log"
 )
 
 // Filter is a processor wrapper that filter table WAL events based on the

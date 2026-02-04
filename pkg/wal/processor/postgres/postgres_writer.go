@@ -3,16 +3,16 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/otel"
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal/checkpointer"
+	"atvenupgstream/pkg/wal/processor/batch"
 	"context"
 	"fmt"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	pglibretrier "github.com/xataio/pgstream/internal/postgres/retrier"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/otel"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal/checkpointer"
-	"github.com/xataio/pgstream/pkg/wal/processor/batch"
+	pglib "atvenupgstream/internal/postgres"
+	pglibretrier "atvenupgstream/internal/postgres/retrier"
+	loglib "atvenupgstream/pkg/log"
 )
 
 type Writer struct {

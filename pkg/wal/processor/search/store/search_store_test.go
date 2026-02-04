@@ -3,6 +3,9 @@
 package store
 
 import (
+	"atvenupgstream/internal/searchstore"
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal/processor/search"
 	"bytes"
 	"context"
 	"errors"
@@ -12,11 +15,10 @@ import (
 
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/internal/searchstore"
-	searchstoremocks "github.com/xataio/pgstream/internal/searchstore/mocks"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal/processor/search"
-	searchmocks "github.com/xataio/pgstream/pkg/wal/processor/search/mocks"
+
+	searchstoremocks "atvenupgstream/internal/searchstore/mocks"
+
+	searchmocks "atvenupgstream/pkg/wal/processor/search/mocks"
 )
 
 func TestStore_ApplySchemaChange(t *testing.T) {

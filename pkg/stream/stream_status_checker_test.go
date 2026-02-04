@@ -3,21 +3,22 @@
 package stream
 
 import (
+	"atvenupgstream/pkg/wal/processor/transformer"
 	"context"
 	"errors"
 	"fmt"
 	"syscall"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
+	pglib "atvenupgstream/internal/postgres"
+	pgmocks "atvenupgstream/internal/postgres/mocks"
+	pgmigrations "atvenupgstream/migrations/postgres"
+	pgprocessor "atvenupgstream/pkg/wal/processor/postgres"
+	"github.com/atvenu/pgx"
+	"github.com/atvenu/pgx/pgconn"
 	"github.com/stretchr/testify/require"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	pgmocks "github.com/xataio/pgstream/internal/postgres/mocks"
-	pgmigrations "github.com/xataio/pgstream/migrations/postgres"
-	pgprocessor "github.com/xataio/pgstream/pkg/wal/processor/postgres"
-	"github.com/xataio/pgstream/pkg/wal/processor/transformer"
-	replicationpg "github.com/xataio/pgstream/pkg/wal/replication/postgres"
+
+	replicationpg "atvenupgstream/pkg/wal/replication/postgres"
 )
 
 func TestStatusChecker_Status(t *testing.T) {

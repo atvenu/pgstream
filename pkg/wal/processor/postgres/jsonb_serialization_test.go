@@ -3,13 +3,13 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/wal"
 	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	sonicjson "github.com/xataio/pgstream/internal/json"
-	"github.com/xataio/pgstream/pkg/wal"
+	sonicjson "atvenupgstream/internal/json"
 )
 
 func TestFilterRowColumnsJSONBHandling(t *testing.T) {

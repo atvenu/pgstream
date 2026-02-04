@@ -3,16 +3,16 @@
 package integration
 
 import (
+	"atvenupgstream/internal/testcontainers"
+	"atvenupgstream/pkg/stream"
 	"context"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
+	pglib "atvenupgstream/internal/postgres"
 	"github.com/stretchr/testify/require"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	"github.com/xataio/pgstream/internal/testcontainers"
-	"github.com/xataio/pgstream/pkg/stream"
 )
 
 func Test_SnapshotToPostgres(t *testing.T) {

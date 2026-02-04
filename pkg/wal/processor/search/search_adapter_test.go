@@ -3,6 +3,10 @@
 package search
 
 import (
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/processor"
+	"atvenupgstream/pkg/wal/replication"
 	"errors"
 	"fmt"
 	"testing"
@@ -11,12 +15,9 @@ import (
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/processor"
-	searchmocks "github.com/xataio/pgstream/pkg/wal/processor/search/mocks"
-	"github.com/xataio/pgstream/pkg/wal/replication"
-	replicationmocks "github.com/xataio/pgstream/pkg/wal/replication/mocks"
+	searchmocks "atvenupgstream/pkg/wal/processor/search/mocks"
+
+	replicationmocks "atvenupgstream/pkg/wal/replication/mocks"
 )
 
 func TestAdapter_walEventToMsg(t *testing.T) {

@@ -6,8 +6,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/atvenu/pgx"
+	"github.com/atvenu/pgx/pgxpool"
 )
 
 type Pool struct {

@@ -3,9 +3,8 @@
 package mocks
 
 import (
+	"atvenupgstream/pkg/kafka"
 	"context"
-
-	"github.com/xataio/pgstream/pkg/kafka"
 )
 
 type Reader struct {

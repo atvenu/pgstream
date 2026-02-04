@@ -3,20 +3,22 @@
 package postgres
 
 import (
+	"atvenupgstream/internal/progress"
+	"atvenupgstream/pkg/otel"
+	"atvenupgstream/pkg/snapshot"
+	"atvenupgstream/pkg/wal/processor"
 	"context"
 	"errors"
 	"fmt"
 	"strings"
 	"sync"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	pglibinstrumentation "github.com/xataio/pgstream/internal/postgres/instrumentation"
-	"github.com/xataio/pgstream/internal/progress"
-	synclib "github.com/xataio/pgstream/internal/sync"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/otel"
-	"github.com/xataio/pgstream/pkg/snapshot"
-	"github.com/xataio/pgstream/pkg/wal/processor"
+	pglib "atvenupgstream/internal/postgres"
+	pglibinstrumentation "atvenupgstream/internal/postgres/instrumentation"
+
+	synclib "atvenupgstream/internal/sync"
+	loglib "atvenupgstream/pkg/log"
+
 	"golang.org/x/sync/errgroup"
 )
 

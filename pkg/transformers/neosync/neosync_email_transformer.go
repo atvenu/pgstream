@@ -3,12 +3,12 @@
 package neosync
 
 import (
+	"atvenupgstream/pkg/transformers"
 	"errors"
 	"fmt"
 	"slices"
 
 	neosynctransformers "github.com/nucleuscloud/neosync/worker/pkg/benthos/transformers"
-	"github.com/xataio/pgstream/pkg/transformers"
 )
 
 type EmailTransformer struct {

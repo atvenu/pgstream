@@ -3,14 +3,14 @@
 package retrier
 
 import (
+	"atvenupgstream/internal/postgres"
+	"atvenupgstream/pkg/backoff"
 	"context"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/xataio/pgstream/internal/postgres"
-	"github.com/xataio/pgstream/pkg/backoff"
-	loglib "github.com/xataio/pgstream/pkg/log"
+	loglib "atvenupgstream/pkg/log"
 )
 
 type Querier struct {

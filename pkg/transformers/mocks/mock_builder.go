@@ -3,7 +3,7 @@
 package mocks
 
 import (
-	"github.com/xataio/pgstream/pkg/transformers"
+	"atvenupgstream/pkg/transformers"
 )
 
 type TransformerBuilder struct {

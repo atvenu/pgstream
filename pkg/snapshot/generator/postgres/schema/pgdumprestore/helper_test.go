@@ -5,7 +5,7 @@ package pgdumprestore
 import (
 	"context"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
+	pglib "atvenupgstream/internal/postgres"
 )
 
 type mockPgDump struct {

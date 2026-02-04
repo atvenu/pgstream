@@ -3,11 +3,11 @@
 package neosync
 
 import (
+	"atvenupgstream/pkg/transformers"
 	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/transformers"
 )
 
 func TestStringTransformer_Transform(t *testing.T) {

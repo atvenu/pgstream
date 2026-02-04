@@ -3,11 +3,11 @@
 package greenmask
 
 import (
+	"atvenupgstream/pkg/transformers"
 	"context"
 	"fmt"
 
 	greenmasktransformers "github.com/eminano/greenmask/pkg/generators/transformers"
-	"github.com/xataio/pgstream/pkg/transformers"
 )
 
 type FirstNameTransformer struct {

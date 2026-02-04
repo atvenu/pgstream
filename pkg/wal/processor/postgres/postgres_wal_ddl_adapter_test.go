@@ -3,17 +3,18 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/schemalog"
 	"context"
 	"errors"
 	"fmt"
 	"testing"
 	"time"
 
+	pglib "atvenupgstream/internal/postgres"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	schemalogmocks "github.com/xataio/pgstream/pkg/schemalog/mocks"
+
+	schemalogmocks "atvenupgstream/pkg/schemalog/mocks"
 )
 
 func TestDDLAdapter_walDataToQueries(t *testing.T) {

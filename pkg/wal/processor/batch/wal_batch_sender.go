@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	synclib "github.com/xataio/pgstream/internal/sync"
-	loglib "github.com/xataio/pgstream/pkg/log"
+	synclib "atvenupgstream/internal/sync"
+	loglib "atvenupgstream/pkg/log"
 )
 
 type Sender[T Message] struct {

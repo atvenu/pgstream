@@ -2,7 +2,7 @@ name: Build
 on:
   push:
     branches:
-      - main
+      - "*"
     tags:
       - "**"
   pull_request:
@@ -86,7 +86,7 @@ jobs:
         with:
           coverage-artifact-name: "code-coverage"
           coverage-file-name: "coverage"
-          root-package: "github.com/xataio/pgstream"
+          root-package: "atvenupgstream"
 
   license-check:
     name: license check

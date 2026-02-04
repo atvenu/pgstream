@@ -3,6 +3,7 @@
 package elasticsearch
 
 import (
+	"atvenupgstream/internal/searchstore"
 	"bufio"
 	"bytes"
 	"context"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/esapi"
-	"github.com/xataio/pgstream/internal/searchstore"
 )
 
 type Client struct {

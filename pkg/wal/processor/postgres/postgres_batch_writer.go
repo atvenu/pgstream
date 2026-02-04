@@ -3,18 +3,19 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/processor"
+	"atvenupgstream/pkg/wal/processor/batch"
 	"context"
 	"errors"
 	"fmt"
 	"runtime/debug"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	schemalogpg "github.com/xataio/pgstream/pkg/schemalog/postgres"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/processor"
-	"github.com/xataio/pgstream/pkg/wal/processor/batch"
+	pglib "atvenupgstream/internal/postgres"
+	loglib "atvenupgstream/pkg/log"
+
+	schemalogpg "atvenupgstream/pkg/schemalog/postgres"
 )
 
 // BatchWriter is a WAL processor implementation that batches and writes wal

@@ -3,14 +3,15 @@
 package pgdumprestore
 
 import (
+	"atvenupgstream/internal/progress"
 	"context"
 	"fmt"
 	"time"
 
+	pglib "atvenupgstream/internal/postgres"
 	"github.com/jonboulle/clockwork"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	"github.com/xataio/pgstream/internal/progress"
-	synclib "github.com/xataio/pgstream/internal/sync"
+
+	synclib "atvenupgstream/internal/sync"
 )
 
 // snapshotTracker tracks the progress of long-running operations during a

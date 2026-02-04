@@ -3,12 +3,13 @@
 package transformer
 
 import (
+	"atvenupgstream/pkg/transformers"
 	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/transformers"
-	transformermocks "github.com/xataio/pgstream/pkg/transformers/mocks"
+
+	transformermocks "atvenupgstream/pkg/transformers/mocks"
 )
 
 func TestTransformerParser_parse(t *testing.T) {

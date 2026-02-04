@@ -8,15 +8,15 @@ import (
 	"fmt"
 	"strings"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	pgmigrations "github.com/xataio/pgstream/migrations/postgres"
+	pglib "atvenupgstream/internal/postgres"
+	pgmigrations "atvenupgstream/migrations/postgres"
 
+	"github.com/atvenu/pgx"
+	"github.com/atvenu/pgx/pgconn"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	bindata "github.com/golang-migrate/migrate/v4/source/go_bindata"
 	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const (

@@ -3,13 +3,12 @@
 package integration
 
 import (
+	"atvenupgstream/internal/testcontainers"
+	"atvenupgstream/pkg/stream"
 	"context"
 	"log"
 	"os"
 	"testing"
-
-	"github.com/xataio/pgstream/internal/testcontainers"
-	"github.com/xataio/pgstream/pkg/stream"
 )
 
 func TestMain(m *testing.M) {

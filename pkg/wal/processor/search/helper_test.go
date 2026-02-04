@@ -3,14 +3,14 @@
 package search
 
 import (
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal"
 	"context"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/rs/xid"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal"
 )
 
 type mockAdapter struct {

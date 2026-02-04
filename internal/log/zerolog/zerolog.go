@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	loglib "github.com/xataio/pgstream/pkg/log"
-	zerologlib "github.com/xataio/pgstream/pkg/log/zerolog"
+	loglib "atvenupgstream/pkg/log"
+	zerologlib "atvenupgstream/pkg/log/zerolog"
 
 	"github.com/go-logr/zerologr"
 	"github.com/rs/zerolog"

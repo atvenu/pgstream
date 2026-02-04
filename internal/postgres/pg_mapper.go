@@ -6,9 +6,9 @@ import (
 	"context"
 	"fmt"
 
-	synclib "github.com/xataio/pgstream/internal/sync"
+	synclib "atvenupgstream/internal/sync"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/atvenu/pgx/pgtype"
 )
 
 // Mapper provides PostgreSQL type information mapping from OIDs to type names.

@@ -3,9 +3,8 @@
 package main
 
 import (
+	"atvenupgstream/cmd"
 	"os"
-
-	"github.com/xataio/pgstream/cmd"
 )
 
 func main() {

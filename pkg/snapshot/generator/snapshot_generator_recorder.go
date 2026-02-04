@@ -3,13 +3,13 @@
 package generator
 
 import (
+	"atvenupgstream/pkg/snapshot"
 	"context"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/xataio/pgstream/pkg/snapshot"
-	snapshotstore "github.com/xataio/pgstream/pkg/snapshot/store"
+	snapshotstore "atvenupgstream/pkg/snapshot/store"
 	"golang.org/x/sync/errgroup"
 )
 

@@ -3,6 +3,12 @@
 package notifier
 
 import (
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/checkpointer"
+	"atvenupgstream/pkg/wal/processor"
+	"atvenupgstream/pkg/wal/processor/webhook"
+	"atvenupgstream/pkg/wal/processor/webhook/subscription"
+	"atvenupgstream/pkg/wal/processor/webhook/subscription/store/mocks"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,16 +18,10 @@ import (
 	"testing"
 	"time"
 
+	httplib "atvenupgstream/internal/http"
+	httpmocks "atvenupgstream/internal/http/mocks"
+	syncmocks "atvenupgstream/internal/sync/mocks"
 	"github.com/stretchr/testify/require"
-	httplib "github.com/xataio/pgstream/internal/http"
-	httpmocks "github.com/xataio/pgstream/internal/http/mocks"
-	syncmocks "github.com/xataio/pgstream/internal/sync/mocks"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/checkpointer"
-	"github.com/xataio/pgstream/pkg/wal/processor"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription/store/mocks"
 )
 
 func TestNotifier_ProcessWALEvent(t *testing.T) {

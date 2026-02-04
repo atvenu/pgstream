@@ -3,26 +3,29 @@
 package stream
 
 import (
+	"atvenupgstream/pkg/kafka"
+	"atvenupgstream/pkg/otel"
+	"atvenupgstream/pkg/wal/checkpointer"
+	"atvenupgstream/pkg/wal/listener"
+	"atvenupgstream/pkg/wal/processor"
+	"atvenupgstream/pkg/wal/replication"
 	"context"
 	"errors"
 	"fmt"
 
-	"github.com/xataio/pgstream/pkg/kafka"
-	kafkainstrumentation "github.com/xataio/pgstream/pkg/kafka/instrumentation"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/otel"
-	"github.com/xataio/pgstream/pkg/wal/checkpointer"
-	kafkacheckpoint "github.com/xataio/pgstream/pkg/wal/checkpointer/kafka"
-	pgcheckpoint "github.com/xataio/pgstream/pkg/wal/checkpointer/postgres"
-	"github.com/xataio/pgstream/pkg/wal/listener"
-	kafkalistener "github.com/xataio/pgstream/pkg/wal/listener/kafka"
-	pglistener "github.com/xataio/pgstream/pkg/wal/listener/postgres"
-	snapshotbuilder "github.com/xataio/pgstream/pkg/wal/listener/snapshot/builder"
-	"github.com/xataio/pgstream/pkg/wal/processor"
-	"github.com/xataio/pgstream/pkg/wal/replication"
-	replicationinstrumentation "github.com/xataio/pgstream/pkg/wal/replication/instrumentation"
-	pgreplication "github.com/xataio/pgstream/pkg/wal/replication/postgres"
-	replicationretrier "github.com/xataio/pgstream/pkg/wal/replication/retrier"
+	kafkainstrumentation "atvenupgstream/pkg/kafka/instrumentation"
+	loglib "atvenupgstream/pkg/log"
+
+	kafkacheckpoint "atvenupgstream/pkg/wal/checkpointer/kafka"
+	pgcheckpoint "atvenupgstream/pkg/wal/checkpointer/postgres"
+
+	kafkalistener "atvenupgstream/pkg/wal/listener/kafka"
+	pglistener "atvenupgstream/pkg/wal/listener/postgres"
+	snapshotbuilder "atvenupgstream/pkg/wal/listener/snapshot/builder"
+
+	replicationinstrumentation "atvenupgstream/pkg/wal/replication/instrumentation"
+	pgreplication "atvenupgstream/pkg/wal/replication/postgres"
+	replicationretrier "atvenupgstream/pkg/wal/replication/retrier"
 
 	"golang.org/x/sync/errgroup"
 )

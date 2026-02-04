@@ -3,6 +3,12 @@
 package integration
 
 import (
+	"atvenupgstream/internal/searchstore"
+	"atvenupgstream/internal/searchstore/elasticsearch"
+	"atvenupgstream/internal/searchstore/opensearch"
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/stream"
+	"atvenupgstream/pkg/wal/processor/search/store"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -12,12 +18,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/internal/searchstore"
-	"github.com/xataio/pgstream/internal/searchstore/elasticsearch"
-	"github.com/xataio/pgstream/internal/searchstore/opensearch"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/stream"
-	"github.com/xataio/pgstream/pkg/wal/processor/search/store"
 )
 
 func Test_PostgresToSearch(t *testing.T) {

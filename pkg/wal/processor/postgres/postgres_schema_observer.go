@@ -3,13 +3,13 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/schemalog"
 	"context"
 	"fmt"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	synclib "github.com/xataio/pgstream/internal/sync"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/schemalog"
+	pglib "atvenupgstream/internal/postgres"
+	synclib "atvenupgstream/internal/sync"
+	loglib "atvenupgstream/pkg/log"
 )
 
 // pgSchemaObserver keeps track of schema metadata including generated column

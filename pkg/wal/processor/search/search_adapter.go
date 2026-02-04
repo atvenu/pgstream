@@ -3,16 +3,16 @@
 package search
 
 import (
+	"atvenupgstream/internal/json"
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/processor"
+	"atvenupgstream/pkg/wal/replication"
 	"errors"
 	"fmt"
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/xataio/pgstream/internal/json"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/processor"
-	"github.com/xataio/pgstream/pkg/wal/replication"
 )
 
 // walAdapter converts wal events to search messages

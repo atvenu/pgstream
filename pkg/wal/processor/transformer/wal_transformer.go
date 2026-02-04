@@ -3,14 +3,14 @@
 package transformer
 
 import (
+	"atvenupgstream/pkg/transformers"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/processor"
 	"context"
 	"errors"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/transformers"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/processor"
+	pglib "atvenupgstream/internal/postgres"
+	loglib "atvenupgstream/pkg/log"
 )
 
 // Transformer is a decorator around a wal processor that transforms wal event

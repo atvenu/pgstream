@@ -10,8 +10,8 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
+	"github.com/atvenu/pgx/pgtype"
 	greenmasktoolkit "github.com/eminano/greenmask/pkg/toolkit"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const (

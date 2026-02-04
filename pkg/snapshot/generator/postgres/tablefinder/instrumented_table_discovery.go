@@ -3,10 +3,11 @@
 package tablefinder
 
 import (
+	"atvenupgstream/pkg/otel"
 	"context"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	"github.com/xataio/pgstream/pkg/otel"
+	pglib "atvenupgstream/internal/postgres"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )

@@ -3,6 +3,7 @@
 package greenmask
 
 import (
+	"atvenupgstream/pkg/transformers"
 	"context"
 	"errors"
 	"fmt"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/eminano/greenmask/pkg/generators"
 	greenmasktransformers "github.com/eminano/greenmask/pkg/generators/transformers"
-	"github.com/xataio/pgstream/pkg/transformers"
 )
 
 const (

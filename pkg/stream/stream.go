@@ -3,31 +3,34 @@
 package stream
 
 import (
+	"atvenupgstream/pkg/otel"
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/transformers/builder"
+	"atvenupgstream/pkg/wal/checkpointer"
+	"atvenupgstream/pkg/wal/processor"
+	"atvenupgstream/pkg/wal/processor/filter"
+	"atvenupgstream/pkg/wal/processor/injector"
+	"atvenupgstream/pkg/wal/processor/search"
+	"atvenupgstream/pkg/wal/processor/search/store"
+	"atvenupgstream/pkg/wal/processor/transformer"
 	"context"
 	"errors"
 	"fmt"
 
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/otel"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/transformers/builder"
-	"github.com/xataio/pgstream/pkg/wal/checkpointer"
-	"github.com/xataio/pgstream/pkg/wal/processor"
-	"github.com/xataio/pgstream/pkg/wal/processor/filter"
-	"github.com/xataio/pgstream/pkg/wal/processor/injector"
-	processinstrumentation "github.com/xataio/pgstream/pkg/wal/processor/instrumentation"
-	kafkaprocessor "github.com/xataio/pgstream/pkg/wal/processor/kafka"
-	pgwriter "github.com/xataio/pgstream/pkg/wal/processor/postgres"
-	"github.com/xataio/pgstream/pkg/wal/processor/search"
-	searchinstrumentation "github.com/xataio/pgstream/pkg/wal/processor/search/instrumentation"
-	"github.com/xataio/pgstream/pkg/wal/processor/search/store"
-	"github.com/xataio/pgstream/pkg/wal/processor/transformer"
-	webhooknotifier "github.com/xataio/pgstream/pkg/wal/processor/webhook/notifier"
-	subscriptionserver "github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription/server"
-	webhookstore "github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription/store"
-	subscriptionstorecache "github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription/store/cache"
-	pgwebhook "github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription/store/postgres"
-	pgreplication "github.com/xataio/pgstream/pkg/wal/replication/postgres"
+	loglib "atvenupgstream/pkg/log"
+
+	processinstrumentation "atvenupgstream/pkg/wal/processor/instrumentation"
+	kafkaprocessor "atvenupgstream/pkg/wal/processor/kafka"
+	pgwriter "atvenupgstream/pkg/wal/processor/postgres"
+
+	searchinstrumentation "atvenupgstream/pkg/wal/processor/search/instrumentation"
+
+	webhooknotifier "atvenupgstream/pkg/wal/processor/webhook/notifier"
+	subscriptionserver "atvenupgstream/pkg/wal/processor/webhook/subscription/server"
+	webhookstore "atvenupgstream/pkg/wal/processor/webhook/subscription/store"
+	subscriptionstorecache "atvenupgstream/pkg/wal/processor/webhook/subscription/store/cache"
+	pgwebhook "atvenupgstream/pkg/wal/processor/webhook/subscription/store/postgres"
+	pgreplication "atvenupgstream/pkg/wal/replication/postgres"
 )
 
 type closerFn func() error

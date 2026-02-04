@@ -3,12 +3,12 @@
 package greenmask
 
 import (
+	"atvenupgstream/pkg/transformers"
 	"context"
 	"testing"
 
 	"github.com/eminano/greenmask/pkg/toolkit"
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/transformers"
 )
 
 func TestNewChoiceTransformer(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/atvenu/pgx"
 	"github.com/stretchr/testify/require"
 )
 

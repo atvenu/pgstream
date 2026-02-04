@@ -3,9 +3,8 @@
 package mocks
 
 import (
+	"atvenupgstream/pkg/wal"
 	"context"
-
-	"github.com/xataio/pgstream/pkg/wal"
 )
 
 type Processor struct {

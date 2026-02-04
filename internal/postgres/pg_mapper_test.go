@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	synclib "github.com/xataio/pgstream/internal/sync"
+	synclib "atvenupgstream/internal/sync"
 
 	"github.com/stretchr/testify/require"
 )

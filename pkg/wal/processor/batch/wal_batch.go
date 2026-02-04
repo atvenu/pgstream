@@ -3,7 +3,7 @@
 package batch
 
 import (
-	"github.com/xataio/pgstream/pkg/wal"
+	"atvenupgstream/pkg/wal"
 )
 
 type Batch[T Message] struct {

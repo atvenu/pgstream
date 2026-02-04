@@ -3,6 +3,10 @@
 package pgdumprestore
 
 import (
+	"atvenupgstream/pkg/otel"
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/snapshot"
+	"atvenupgstream/pkg/snapshot/generator"
 	"bufio"
 	"bytes"
 	"context"
@@ -14,15 +18,12 @@ import (
 	"strings"
 	"sync"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	pglibinstrumentation "github.com/xataio/pgstream/internal/postgres/instrumentation"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/otel"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	schemaloginstrumentation "github.com/xataio/pgstream/pkg/schemalog/instrumentation"
-	schemalogpg "github.com/xataio/pgstream/pkg/schemalog/postgres"
-	"github.com/xataio/pgstream/pkg/snapshot"
-	"github.com/xataio/pgstream/pkg/snapshot/generator"
+	pglib "atvenupgstream/internal/postgres"
+	pglibinstrumentation "atvenupgstream/internal/postgres/instrumentation"
+	loglib "atvenupgstream/pkg/log"
+
+	schemaloginstrumentation "atvenupgstream/pkg/schemalog/instrumentation"
+	schemalogpg "atvenupgstream/pkg/schemalog/postgres"
 )
 
 // SnapshotGenerator generates postgres schema snapshots using pg_dump and

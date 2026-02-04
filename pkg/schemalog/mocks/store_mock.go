@@ -3,10 +3,9 @@
 package mocks
 
 import (
+	"atvenupgstream/pkg/schemalog"
 	"context"
 	"sync/atomic"
-
-	"github.com/xataio/pgstream/pkg/schemalog"
 )
 
 type Store struct {

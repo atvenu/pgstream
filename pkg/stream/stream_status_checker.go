@@ -3,18 +3,18 @@
 package stream
 
 import (
+	"atvenupgstream/pkg/transformers/builder"
+	"atvenupgstream/pkg/wal/processor/transformer"
 	"context"
 	"errors"
 	"fmt"
 	"strings"
 	"syscall"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	pgmigrations "github.com/xataio/pgstream/migrations/postgres"
-	"github.com/xataio/pgstream/pkg/transformers/builder"
-	"github.com/xataio/pgstream/pkg/wal/processor/transformer"
+	pglib "atvenupgstream/internal/postgres"
+	pgmigrations "atvenupgstream/migrations/postgres"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/atvenu/pgx"
 )
 
 // StatusChecker is responsible for validating the status of the pgstream setup

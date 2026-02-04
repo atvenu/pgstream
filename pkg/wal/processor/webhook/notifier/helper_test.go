@@ -3,10 +3,9 @@
 package notifier
 
 import (
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/processor/webhook/subscription"
 	"errors"
-
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription"
 )
 
 var (

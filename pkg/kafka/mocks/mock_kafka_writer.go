@@ -3,10 +3,9 @@
 package mocks
 
 import (
+	"atvenupgstream/pkg/kafka"
 	"context"
 	"sync/atomic"
-
-	"github.com/xataio/pgstream/pkg/kafka"
 )
 
 type Writer struct {

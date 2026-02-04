@@ -3,12 +3,12 @@
 package batch
 
 import (
+	"atvenupgstream/internal/log/zerolog"
 	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/internal/log/zerolog"
 )
 
 func TestBatchBytesTuner_sendBatch(t *testing.T) {

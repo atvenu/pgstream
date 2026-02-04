@@ -3,6 +3,7 @@
 package main
 
 import (
+	"atvenupgstream/internal/log/zerolog"
 	"bytes"
 	"encoding/json"
 	"flag"
@@ -12,8 +13,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/xataio/pgstream/internal/log/zerolog"
-	loglib "github.com/xataio/pgstream/pkg/log"
+	loglib "atvenupgstream/pkg/log"
 )
 
 var logger loglib.Logger

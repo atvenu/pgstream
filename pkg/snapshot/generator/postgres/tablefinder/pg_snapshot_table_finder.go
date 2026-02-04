@@ -3,15 +3,15 @@
 package tablefinder
 
 import (
+	"atvenupgstream/pkg/otel"
+	"atvenupgstream/pkg/snapshot"
+	"atvenupgstream/pkg/snapshot/generator"
 	"context"
 	"fmt"
 	"slices"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	pglibinstrumentation "github.com/xataio/pgstream/internal/postgres/instrumentation"
-	"github.com/xataio/pgstream/pkg/otel"
-	"github.com/xataio/pgstream/pkg/snapshot"
-	"github.com/xataio/pgstream/pkg/snapshot/generator"
+	pglib "atvenupgstream/internal/postgres"
+	pglibinstrumentation "atvenupgstream/internal/postgres/instrumentation"
 )
 
 // SnapshotSchemaTableFinder is a decorator around a snapshot generator that will

@@ -3,18 +3,18 @@
 package search
 
 import (
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/checkpointer"
+	"atvenupgstream/pkg/wal/processor"
+	"atvenupgstream/pkg/wal/processor/batch"
+	"atvenupgstream/pkg/wal/replication"
 	"context"
 	"errors"
 	"fmt"
 	"runtime/debug"
 
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/checkpointer"
-	"github.com/xataio/pgstream/pkg/wal/processor"
-	"github.com/xataio/pgstream/pkg/wal/processor/batch"
-	"github.com/xataio/pgstream/pkg/wal/replication"
+	loglib "atvenupgstream/pkg/log"
 )
 
 // BatchIndexer is the environment for ingesting the WAL logical

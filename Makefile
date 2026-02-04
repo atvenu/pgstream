@@ -44,7 +44,7 @@ build:
 
 .PHONY: build-linux-amd64
 build-linux-amd64:
-	@GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/xataio/pgstream/cmd.Env=development -X github.com/xataio/pgstream/cmd.Version=$(GIT_COMMIT)" .
+	@GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/atvenu/pgstream/cmd.Env=development -X github.com/atvenu/pgstream/cmd.Version=$(GIT_COMMIT)" .
 
 .PHONY: build-linux-arm64
 build-linux-arm64:

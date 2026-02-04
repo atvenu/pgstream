@@ -3,7 +3,7 @@
 package search
 
 import (
-	"github.com/xataio/pgstream/pkg/schemalog"
+	"atvenupgstream/pkg/schemalog"
 )
 
 type msg struct {

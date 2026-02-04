@@ -3,15 +3,15 @@
 package search
 
 import (
+	"atvenupgstream/internal/json"
+	"atvenupgstream/pkg/backoff"
+	"atvenupgstream/pkg/schemalog"
 	"context"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/xataio/pgstream/internal/json"
-	"github.com/xataio/pgstream/pkg/backoff"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/schemalog"
+	loglib "atvenupgstream/pkg/log"
 )
 
 // StoreRetrier applies a retry strategy to failed search store operations.

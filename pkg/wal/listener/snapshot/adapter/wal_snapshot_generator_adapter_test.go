@@ -3,15 +3,16 @@
 package adapter
 
 import (
+	"atvenupgstream/pkg/log"
+	"atvenupgstream/pkg/snapshot"
+	"atvenupgstream/pkg/snapshot/generator"
 	"context"
 	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/snapshot"
-	"github.com/xataio/pgstream/pkg/snapshot/generator"
-	generatormocks "github.com/xataio/pgstream/pkg/snapshot/generator/mocks"
+
+	generatormocks "atvenupgstream/pkg/snapshot/generator/mocks"
 )
 
 func TestSnapshotGeneratorAdapter_CreateSnapshot(t *testing.T) {

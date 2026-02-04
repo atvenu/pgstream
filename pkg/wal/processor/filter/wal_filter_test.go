@@ -3,18 +3,18 @@
 package filter
 
 import (
+	"atvenupgstream/pkg/log"
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/processor/mocks"
 	"context"
 	"errors"
 	"testing"
 	"time"
 
+	pglib "atvenupgstream/internal/postgres"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	"github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/processor/mocks"
 )
 
 func Test_New(t *testing.T) {

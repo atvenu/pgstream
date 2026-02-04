@@ -3,9 +3,8 @@
 package cache
 
 import (
+	"atvenupgstream/pkg/wal/processor/webhook/subscription"
 	"errors"
-
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription"
 )
 
 var errTest = errors.New("oh noes")

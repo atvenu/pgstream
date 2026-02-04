@@ -8,7 +8,7 @@ import (
 	"time"
 
 	// TODO: remove pg dependency from schemalog pkg (move to postgres)
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/atvenu/pgx/pgtype"
 	"github.com/rs/xid"
 )
 

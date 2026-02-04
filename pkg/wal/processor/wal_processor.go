@@ -3,13 +3,12 @@
 package processor
 
 import (
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal"
 )
 
 // Processor is a general interface to receive and process a wal event

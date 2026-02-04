@@ -3,14 +3,14 @@
 package retrier
 
 import (
+	"atvenupgstream/pkg/backoff"
+	"atvenupgstream/pkg/wal/replication"
 	"context"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/xataio/pgstream/pkg/backoff"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal/replication"
+	loglib "atvenupgstream/pkg/log"
 )
 
 type HandlerRetrier struct {

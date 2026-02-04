@@ -3,11 +3,10 @@
 package instrumentation
 
 import (
+	"atvenupgstream/pkg/otel"
+	"atvenupgstream/pkg/wal/replication"
 	"context"
 	"fmt"
-
-	"github.com/xataio/pgstream/pkg/otel"
-	"github.com/xataio/pgstream/pkg/wal/replication"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"

@@ -3,15 +3,15 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/log"
+	"atvenupgstream/pkg/wal"
 	"fmt"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/atvenu/pgx/pgtype"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal"
 )
 
 func TestDMLAdapter_walDataToQueries(t *testing.T) {

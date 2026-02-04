@@ -3,9 +3,8 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/wal/replication"
 	"context"
-
-	"github.com/xataio/pgstream/pkg/wal/replication"
 )
 
 type mockSyncer struct {

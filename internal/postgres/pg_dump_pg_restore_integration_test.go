@@ -3,6 +3,7 @@
 package postgres
 
 import (
+	"atvenupgstream/internal/testcontainers"
 	"context"
 	"fmt"
 	"os"
@@ -10,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/internal/testcontainers"
 )
 
 func Test_pgdump_pgrestore(t *testing.T) {

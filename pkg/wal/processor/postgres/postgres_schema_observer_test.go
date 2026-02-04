@@ -3,17 +3,17 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/schemalog"
 	"context"
 	"errors"
 	"fmt"
 	"testing"
 
+	pglib "atvenupgstream/internal/postgres"
+	pgmocks "atvenupgstream/internal/postgres/mocks"
+	synclib "atvenupgstream/internal/sync"
+	loglib "atvenupgstream/pkg/log"
 	"github.com/stretchr/testify/require"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	pgmocks "github.com/xataio/pgstream/internal/postgres/mocks"
-	synclib "github.com/xataio/pgstream/internal/sync"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/schemalog"
 )
 
 func TestPGSchemaObserver_getGeneratedColumnNames(t *testing.T) {

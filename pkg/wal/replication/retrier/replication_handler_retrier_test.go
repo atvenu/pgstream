@@ -3,16 +3,16 @@
 package retrier
 
 import (
+	"atvenupgstream/pkg/backoff"
+	"atvenupgstream/pkg/log"
+	"atvenupgstream/pkg/wal/replication"
+	"atvenupgstream/pkg/wal/replication/mocks"
 	"context"
 	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/backoff"
-	"github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal/replication"
-	"github.com/xataio/pgstream/pkg/wal/replication/mocks"
 )
 
 func TestHandlerRetrier_ReceiveMessage(t *testing.T) {

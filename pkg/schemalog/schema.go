@@ -3,10 +3,9 @@
 package schemalog
 
 import (
+	"atvenupgstream/internal/json"
 	"slices"
 	"strings"
-
-	"github.com/xataio/pgstream/internal/json"
 )
 
 type Schema struct {

@@ -3,10 +3,9 @@
 package mocks
 
 import (
+	"atvenupgstream/internal/postgres"
 	"context"
 	"sync/atomic"
-
-	"github.com/xataio/pgstream/internal/postgres"
 )
 
 type Querier struct {

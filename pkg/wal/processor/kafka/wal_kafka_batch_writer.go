@@ -3,21 +3,21 @@
 package kafka
 
 import (
+	"atvenupgstream/internal/json"
+	"atvenupgstream/pkg/kafka"
+	"atvenupgstream/pkg/otel"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/checkpointer"
+	"atvenupgstream/pkg/wal/processor"
+	"atvenupgstream/pkg/wal/processor/batch"
 	"context"
 	"errors"
 	"fmt"
 	"runtime/debug"
 	"time"
 
-	"github.com/xataio/pgstream/internal/json"
-	"github.com/xataio/pgstream/pkg/kafka"
-	kafkainstrumentation "github.com/xataio/pgstream/pkg/kafka/instrumentation"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/otel"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/checkpointer"
-	"github.com/xataio/pgstream/pkg/wal/processor"
-	"github.com/xataio/pgstream/pkg/wal/processor/batch"
+	kafkainstrumentation "atvenupgstream/pkg/kafka/instrumentation"
+	loglib "atvenupgstream/pkg/log"
 )
 
 // BatchWriter is a kafka writer that uses batches to send the data to the

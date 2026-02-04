@@ -3,6 +3,20 @@
 package integration
 
 import (
+	"atvenupgstream/internal/log/zerolog"
+	"atvenupgstream/pkg/backoff"
+	"atvenupgstream/pkg/snapshot/generator/postgres/schema/pgdumprestore"
+	"atvenupgstream/pkg/stream"
+	"atvenupgstream/pkg/tls"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/listener/snapshot/adapter"
+	"atvenupgstream/pkg/wal/processor/batch"
+	"atvenupgstream/pkg/wal/processor/injector"
+	"atvenupgstream/pkg/wal/processor/postgres"
+	"atvenupgstream/pkg/wal/processor/search/store"
+	"atvenupgstream/pkg/wal/processor/transformer"
+	"atvenupgstream/pkg/wal/processor/webhook"
+	"atvenupgstream/pkg/wal/processor/webhook/notifier"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -14,29 +28,21 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/internal/log/zerolog"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	"github.com/xataio/pgstream/pkg/backoff"
-	kafkalib "github.com/xataio/pgstream/pkg/kafka"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	schemalogpg "github.com/xataio/pgstream/pkg/schemalog/postgres"
-	pgsnapshotgenerator "github.com/xataio/pgstream/pkg/snapshot/generator/postgres/data"
-	"github.com/xataio/pgstream/pkg/snapshot/generator/postgres/schema/pgdumprestore"
-	"github.com/xataio/pgstream/pkg/stream"
-	"github.com/xataio/pgstream/pkg/tls"
-	"github.com/xataio/pgstream/pkg/wal"
-	kafkacheckpoint "github.com/xataio/pgstream/pkg/wal/checkpointer/kafka"
-	"github.com/xataio/pgstream/pkg/wal/listener/snapshot/adapter"
-	snapshotbuilder "github.com/xataio/pgstream/pkg/wal/listener/snapshot/builder"
-	"github.com/xataio/pgstream/pkg/wal/processor/batch"
-	"github.com/xataio/pgstream/pkg/wal/processor/injector"
-	kafkaprocessor "github.com/xataio/pgstream/pkg/wal/processor/kafka"
-	"github.com/xataio/pgstream/pkg/wal/processor/postgres"
-	"github.com/xataio/pgstream/pkg/wal/processor/search/store"
-	"github.com/xataio/pgstream/pkg/wal/processor/transformer"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/notifier"
-	pgreplication "github.com/xataio/pgstream/pkg/wal/replication/postgres"
+
+	pglib "atvenupgstream/internal/postgres"
+
+	kafkalib "atvenupgstream/pkg/kafka"
+	loglib "atvenupgstream/pkg/log"
+	schemalogpg "atvenupgstream/pkg/schemalog/postgres"
+	pgsnapshotgenerator "atvenupgstream/pkg/snapshot/generator/postgres/data"
+
+	kafkacheckpoint "atvenupgstream/pkg/wal/checkpointer/kafka"
+
+	snapshotbuilder "atvenupgstream/pkg/wal/listener/snapshot/builder"
+
+	kafkaprocessor "atvenupgstream/pkg/wal/processor/kafka"
+
+	pgreplication "atvenupgstream/pkg/wal/replication/postgres"
 )
 
 var (

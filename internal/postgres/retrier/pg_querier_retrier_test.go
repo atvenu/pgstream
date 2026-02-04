@@ -3,17 +3,18 @@
 package retrier
 
 import (
+	"atvenupgstream/internal/postgres"
+	"atvenupgstream/internal/postgres/mocks"
+	"atvenupgstream/pkg/backoff"
 	"context"
 	"errors"
 	"fmt"
 	"testing"
 
-	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/atvenu/pgx/pgconn"
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/internal/postgres"
-	"github.com/xataio/pgstream/internal/postgres/mocks"
-	"github.com/xataio/pgstream/pkg/backoff"
-	loglib "github.com/xataio/pgstream/pkg/log"
+
+	loglib "atvenupgstream/pkg/log"
 )
 
 func TestQuerier_Query(t *testing.T) {

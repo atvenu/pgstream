@@ -3,6 +3,7 @@
 package batch
 
 import (
+	"atvenupgstream/internal/log/zerolog"
 	"context"
 	"fmt"
 	"math"
@@ -10,8 +11,6 @@ import (
 	"time"
 
 	"pgregory.net/rapid"
-
-	"github.com/xataio/pgstream/internal/log/zerolog"
 )
 
 // Property-based tests for the batch bytes auto-tuner.

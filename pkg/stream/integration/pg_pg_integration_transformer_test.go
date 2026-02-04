@@ -3,15 +3,15 @@
 package integration
 
 import (
+	"atvenupgstream/pkg/stream"
 	"context"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
+	pglib "atvenupgstream/internal/postgres"
 	"github.com/stretchr/testify/require"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	"github.com/xataio/pgstream/pkg/stream"
 )
 
 type transformerTestTableRow struct {

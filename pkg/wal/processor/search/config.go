@@ -3,7 +3,7 @@
 package search
 
 import (
-	"github.com/xataio/pgstream/pkg/wal/processor/batch"
+	"atvenupgstream/pkg/wal/processor/batch"
 )
 
 type IndexerConfig struct {

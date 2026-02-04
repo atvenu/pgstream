@@ -3,12 +3,12 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/wal/processor/webhook/subscription"
 	"context"
 	"fmt"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription"
+	pglib "atvenupgstream/internal/postgres"
+	loglib "atvenupgstream/pkg/log"
 )
 
 type Store struct {

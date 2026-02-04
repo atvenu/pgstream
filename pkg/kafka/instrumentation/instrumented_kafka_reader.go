@@ -3,12 +3,11 @@
 package instrumentation
 
 import (
+	"atvenupgstream/pkg/kafka"
+	"atvenupgstream/pkg/otel"
 	"context"
 	"fmt"
 	"time"
-
-	"github.com/xataio/pgstream/pkg/kafka"
-	"github.com/xataio/pgstream/pkg/otel"
 
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"

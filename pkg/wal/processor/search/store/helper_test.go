@@ -3,9 +3,9 @@
 package store
 
 import (
-	"github.com/xataio/pgstream/internal/searchstore"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal/processor/search"
+	"atvenupgstream/internal/searchstore"
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal/processor/search"
 )
 
 type mockAdapter struct {

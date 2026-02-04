@@ -3,13 +3,13 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal"
 	"context"
 	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal"
 )
 
 func TestAdapter_walEventToQueries(t *testing.T) {

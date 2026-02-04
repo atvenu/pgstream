@@ -3,6 +3,10 @@
 package integration
 
 import (
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/stream"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/processor/webhook/subscription"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -13,10 +17,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/stream"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription"
 )
 
 func Test_PostgresToWebhook(t *testing.T) {

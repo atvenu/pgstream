@@ -3,12 +3,12 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/schemalog"
 	"context"
 	"errors"
 	"fmt"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	"github.com/xataio/pgstream/pkg/schemalog"
+	pglib "atvenupgstream/internal/postgres"
 )
 
 // Store is a postgres implementation of the schemalog.Store interface

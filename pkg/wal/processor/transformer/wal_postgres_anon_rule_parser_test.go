@@ -3,17 +3,18 @@
 package transformer
 
 import (
+	"atvenupgstream/pkg/transformers"
 	"context"
 	"errors"
 	"os"
 	"testing"
 
+	pglib "atvenupgstream/internal/postgres"
+	pgmocks "atvenupgstream/internal/postgres/mocks"
+	loglib "atvenupgstream/pkg/log"
 	"github.com/stretchr/testify/require"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	pgmocks "github.com/xataio/pgstream/internal/postgres/mocks"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/transformers"
-	transformermocks "github.com/xataio/pgstream/pkg/transformers/mocks"
+
+	transformermocks "atvenupgstream/pkg/transformers/mocks"
 	"gopkg.in/yaml.v3"
 )
 

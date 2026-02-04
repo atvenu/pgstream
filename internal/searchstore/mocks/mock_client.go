@@ -3,10 +3,9 @@
 package mocks
 
 import (
+	"atvenupgstream/internal/searchstore"
 	"context"
 	"net/http"
-
-	"github.com/xataio/pgstream/internal/searchstore"
 )
 
 type Client struct {

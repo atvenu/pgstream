@@ -5,7 +5,7 @@ package postgres
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/atvenu/pgx"
 )
 
 type Tx interface {

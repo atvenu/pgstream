@@ -3,32 +3,36 @@
 package config
 
 import (
+	"atvenupgstream/pkg/backoff"
+	"atvenupgstream/pkg/kafka"
+	"atvenupgstream/pkg/otel"
+	"atvenupgstream/pkg/snapshot/generator/postgres/schema/pgdumprestore"
+	"atvenupgstream/pkg/stream"
+	"atvenupgstream/pkg/tls"
+	"atvenupgstream/pkg/wal/listener/snapshot/adapter"
+	"atvenupgstream/pkg/wal/listener/snapshot/builder"
+	"atvenupgstream/pkg/wal/processor/batch"
+	"atvenupgstream/pkg/wal/processor/filter"
+	"atvenupgstream/pkg/wal/processor/injector"
+	"atvenupgstream/pkg/wal/processor/postgres"
+	"atvenupgstream/pkg/wal/processor/search"
+	"atvenupgstream/pkg/wal/processor/search/store"
+	"atvenupgstream/pkg/wal/processor/transformer"
+	"atvenupgstream/pkg/wal/processor/webhook/notifier"
+	"atvenupgstream/pkg/wal/processor/webhook/subscription/server"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/xataio/pgstream/pkg/backoff"
-	"github.com/xataio/pgstream/pkg/kafka"
-	"github.com/xataio/pgstream/pkg/otel"
-	schemalogpg "github.com/xataio/pgstream/pkg/schemalog/postgres"
-	pgsnapshotgenerator "github.com/xataio/pgstream/pkg/snapshot/generator/postgres/data"
-	"github.com/xataio/pgstream/pkg/snapshot/generator/postgres/schema/pgdumprestore"
-	"github.com/xataio/pgstream/pkg/stream"
-	"github.com/xataio/pgstream/pkg/tls"
-	kafkacheckpoint "github.com/xataio/pgstream/pkg/wal/checkpointer/kafka"
-	"github.com/xataio/pgstream/pkg/wal/listener/snapshot/adapter"
-	"github.com/xataio/pgstream/pkg/wal/listener/snapshot/builder"
-	"github.com/xataio/pgstream/pkg/wal/processor/batch"
-	"github.com/xataio/pgstream/pkg/wal/processor/filter"
-	"github.com/xataio/pgstream/pkg/wal/processor/injector"
-	kafkaprocessor "github.com/xataio/pgstream/pkg/wal/processor/kafka"
-	"github.com/xataio/pgstream/pkg/wal/processor/postgres"
-	"github.com/xataio/pgstream/pkg/wal/processor/search"
-	"github.com/xataio/pgstream/pkg/wal/processor/search/store"
-	"github.com/xataio/pgstream/pkg/wal/processor/transformer"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/notifier"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription/server"
-	pgreplication "github.com/xataio/pgstream/pkg/wal/replication/postgres"
+
+	schemalogpg "atvenupgstream/pkg/schemalog/postgres"
+	pgsnapshotgenerator "atvenupgstream/pkg/snapshot/generator/postgres/data"
+
+	kafkacheckpoint "atvenupgstream/pkg/wal/checkpointer/kafka"
+
+	kafkaprocessor "atvenupgstream/pkg/wal/processor/kafka"
+
+	pgreplication "atvenupgstream/pkg/wal/replication/postgres"
 )
 
 // this function validates the stream configuration produced from the test

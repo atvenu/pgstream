@@ -3,10 +3,9 @@
 package mocks
 
 import (
+	"atvenupgstream/pkg/wal/replication"
 	"context"
 	"sync/atomic"
-
-	"github.com/xataio/pgstream/pkg/wal/replication"
 )
 
 type Handler struct {

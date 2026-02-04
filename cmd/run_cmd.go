@@ -3,15 +3,15 @@
 package cmd
 
 import (
+	"atvenupgstream/cmd/config"
+	"atvenupgstream/internal/log/zerolog"
+	"atvenupgstream/pkg/stream"
 	"context"
 	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/xataio/pgstream/cmd/config"
-	"github.com/xataio/pgstream/internal/log/zerolog"
-	"github.com/xataio/pgstream/pkg/stream"
 )
 
 var runCmd = &cobra.Command{

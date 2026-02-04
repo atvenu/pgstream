@@ -3,11 +3,11 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/backoff"
+	"atvenupgstream/pkg/wal/processor/batch"
 	"time"
 
-	"github.com/xataio/pgstream/pkg/backoff"
-	schemalogpg "github.com/xataio/pgstream/pkg/schemalog/postgres"
-	"github.com/xataio/pgstream/pkg/wal/processor/batch"
+	schemalogpg "atvenupgstream/pkg/schemalog/postgres"
 )
 
 type Config struct {

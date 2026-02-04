@@ -2,7 +2,7 @@
 
 package batch
 
-import "github.com/xataio/pgstream/pkg/wal"
+import "atvenupgstream/pkg/wal"
 
 type Message interface {
 	Size() int

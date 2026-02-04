@@ -3,10 +3,9 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/otel"
+	"atvenupgstream/pkg/wal"
 	"context"
-
-	"github.com/xataio/pgstream/pkg/otel"
-	"github.com/xataio/pgstream/pkg/wal"
 
 	"go.opentelemetry.io/otel/trace"
 )

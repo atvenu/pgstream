@@ -3,12 +3,11 @@
 package searchstore
 
 import (
+	"atvenupgstream/internal/json"
 	"bytes"
 	"context"
 	"fmt"
 	"net/http"
-
-	"github.com/xataio/pgstream/internal/json"
 )
 
 type Client interface {

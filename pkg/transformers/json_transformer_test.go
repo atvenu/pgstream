@@ -3,12 +3,12 @@
 package transformers
 
 import (
+	"atvenupgstream/internal/json"
 	"context"
 	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/internal/json"
 )
 
 func TestNewJsonTransformer(t *testing.T) {

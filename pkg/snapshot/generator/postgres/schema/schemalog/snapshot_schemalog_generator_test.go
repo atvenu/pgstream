@@ -3,6 +3,9 @@
 package schemalog
 
 import (
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/snapshot"
+	"atvenupgstream/pkg/wal"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,12 +17,12 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	schemalogmocks "github.com/xataio/pgstream/pkg/schemalog/mocks"
-	"github.com/xataio/pgstream/pkg/snapshot"
-	generatormocks "github.com/xataio/pgstream/pkg/snapshot/generator/mocks"
-	"github.com/xataio/pgstream/pkg/wal"
-	processormocks "github.com/xataio/pgstream/pkg/wal/processor/mocks"
+
+	schemalogmocks "atvenupgstream/pkg/schemalog/mocks"
+
+	generatormocks "atvenupgstream/pkg/snapshot/generator/mocks"
+
+	processormocks "atvenupgstream/pkg/wal/processor/mocks"
 )
 
 func TestSnapshotGenerator_CreateSnapshot(t *testing.T) {

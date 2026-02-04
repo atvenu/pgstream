@@ -3,14 +3,15 @@
 package stream
 
 import (
+	"atvenupgstream/pkg/otel"
 	"context"
 	"errors"
 	"fmt"
 
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/otel"
-	snapshotlistener "github.com/xataio/pgstream/pkg/wal/listener/snapshot"
-	snapshotbuilder "github.com/xataio/pgstream/pkg/wal/listener/snapshot/builder"
+	loglib "atvenupgstream/pkg/log"
+
+	snapshotlistener "atvenupgstream/pkg/wal/listener/snapshot"
+	snapshotbuilder "atvenupgstream/pkg/wal/listener/snapshot/builder"
 	"golang.org/x/sync/errgroup"
 )
 

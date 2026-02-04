@@ -3,17 +3,18 @@
 package injector
 
 import (
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/processor"
+	"atvenupgstream/pkg/wal/processor/mocks"
 	"context"
 	"fmt"
 	"testing"
 
+	loglib "atvenupgstream/pkg/log"
 	"github.com/stretchr/testify/require"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	schemalogmocks "github.com/xataio/pgstream/pkg/schemalog/mocks"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/processor"
-	"github.com/xataio/pgstream/pkg/wal/processor/mocks"
+
+	schemalogmocks "atvenupgstream/pkg/schemalog/mocks"
 )
 
 func TestInjector_ProcessWALEvent(t *testing.T) {

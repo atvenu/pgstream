@@ -3,6 +3,8 @@
 package kafka
 
 import (
+	"atvenupgstream/pkg/kafka"
+	"atvenupgstream/pkg/wal"
 	"context"
 	"errors"
 	"fmt"
@@ -11,10 +13,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/kafka"
-	kafkamocks "github.com/xataio/pgstream/pkg/kafka/mocks"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal"
+
+	kafkamocks "atvenupgstream/pkg/kafka/mocks"
+	loglib "atvenupgstream/pkg/log"
 )
 
 func TestReader_Listen(t *testing.T) {

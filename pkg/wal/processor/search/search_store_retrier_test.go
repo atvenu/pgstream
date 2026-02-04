@@ -3,14 +3,15 @@
 package search
 
 import (
+	"atvenupgstream/pkg/backoff"
 	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/backoff"
-	loglib "github.com/xataio/pgstream/pkg/log"
+
+	loglib "atvenupgstream/pkg/log"
 )
 
 func TestStoreRetrier_DeleteSchema(t *testing.T) {

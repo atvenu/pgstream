@@ -3,10 +3,10 @@
 package instrumentation
 
 import (
+	"atvenupgstream/pkg/otel"
 	"context"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	"github.com/xataio/pgstream/pkg/otel"
+	pglib "atvenupgstream/internal/postgres"
 )
 
 func NewQuerierBuilder(b pglib.QuerierBuilder, i *otel.Instrumentation) (pglib.QuerierBuilder, error) {

@@ -3,9 +3,8 @@
 package mocks
 
 import (
+	"atvenupgstream/pkg/wal/processor/webhook/subscription"
 	"context"
-
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription"
 )
 
 type Store struct {

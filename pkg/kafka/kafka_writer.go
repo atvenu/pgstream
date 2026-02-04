@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
+	loglib "atvenupgstream/pkg/log"
+	tlslib "atvenupgstream/pkg/tls"
 	"github.com/segmentio/kafka-go"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	tlslib "github.com/xataio/pgstream/pkg/tls"
 )
 
 type MessageWriter interface {

@@ -3,8 +3,8 @@
 package kafka
 
 import (
-	"github.com/xataio/pgstream/pkg/kafka"
-	"github.com/xataio/pgstream/pkg/wal/processor/batch"
+	"atvenupgstream/pkg/kafka"
+	"atvenupgstream/pkg/wal/processor/batch"
 )
 
 type Config struct {

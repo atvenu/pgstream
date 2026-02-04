@@ -3,14 +3,14 @@
 package postgres
 
 import (
+	"atvenupgstream/internal/json"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/replication"
 	"context"
 	"errors"
 	"fmt"
 
-	"github.com/xataio/pgstream/internal/json"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/replication"
+	loglib "atvenupgstream/pkg/log"
 )
 
 // Listener contains the environment for subscribing and listening to

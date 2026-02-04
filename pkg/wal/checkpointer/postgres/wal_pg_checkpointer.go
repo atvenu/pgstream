@@ -3,11 +3,11 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/replication"
 	"context"
 
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/replication"
-	pgreplication "github.com/xataio/pgstream/pkg/wal/replication/postgres"
+	pgreplication "atvenupgstream/pkg/wal/replication/postgres"
 )
 
 // Checkpointer is a postgres implementation of a wal checkpointer. It syncs the

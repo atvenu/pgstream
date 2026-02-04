@@ -3,6 +3,8 @@
 package server
 
 import (
+	"atvenupgstream/pkg/wal/processor/webhook/subscription"
+	"atvenupgstream/pkg/wal/processor/webhook/subscription/store"
 	"context"
 	"fmt"
 	"net/http"
@@ -10,10 +12,8 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
-	httplib "github.com/xataio/pgstream/internal/http"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription/store"
+	httplib "atvenupgstream/internal/http"
+	loglib "atvenupgstream/pkg/log"
 )
 
 type Server struct {

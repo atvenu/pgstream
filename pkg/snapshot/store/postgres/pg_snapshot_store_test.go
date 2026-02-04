@@ -3,17 +3,17 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/snapshot"
+	"atvenupgstream/pkg/snapshot/store"
 	"context"
 	"errors"
 	"fmt"
 	"testing"
 
+	pglib "atvenupgstream/internal/postgres"
+	postgresmocks "atvenupgstream/internal/postgres/mocks"
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	postgresmocks "github.com/xataio/pgstream/internal/postgres/mocks"
-	"github.com/xataio/pgstream/pkg/snapshot"
-	"github.com/xataio/pgstream/pkg/snapshot/store"
 )
 
 func TestStore_CreateSnapshotRequest(t *testing.T) {

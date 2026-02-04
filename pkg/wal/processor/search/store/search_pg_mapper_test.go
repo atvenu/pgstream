@@ -3,15 +3,15 @@
 package store
 
 import (
+	"atvenupgstream/internal/searchstore/opensearch"
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal/processor/search"
 	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/internal/searchstore/opensearch"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal/processor/search"
 )
 
 const termByteLengthLimit = 32766

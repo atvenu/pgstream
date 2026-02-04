@@ -3,13 +3,13 @@
 package instrumentation
 
 import (
+	"atvenupgstream/pkg/otel"
+	"atvenupgstream/pkg/snapshot"
+	"atvenupgstream/pkg/snapshot/generator"
 	"context"
 	"fmt"
 	"time"
 
-	"github.com/xataio/pgstream/pkg/otel"
-	"github.com/xataio/pgstream/pkg/snapshot"
-	"github.com/xataio/pgstream/pkg/snapshot/generator"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"

@@ -3,14 +3,14 @@
 package kafka
 
 import (
+	"atvenupgstream/pkg/backoff"
+	"atvenupgstream/pkg/kafka"
+	"atvenupgstream/pkg/wal"
 	"context"
 	"fmt"
 	"time"
 
-	"github.com/xataio/pgstream/pkg/backoff"
-	"github.com/xataio/pgstream/pkg/kafka"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal"
+	loglib "atvenupgstream/pkg/log"
 )
 
 // Checkpointer is a kafka implementation of the wal checkpointer. It commits

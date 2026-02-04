@@ -3,14 +3,14 @@
 package cache
 
 import (
+	"atvenupgstream/pkg/wal/processor/webhook/subscription"
+	"atvenupgstream/pkg/wal/processor/webhook/subscription/store"
 	"context"
 	"fmt"
 	"sync"
 	"time"
 
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription/store"
+	loglib "atvenupgstream/pkg/log"
 )
 
 // Store is a wrapper around a subscription store that keeps an in memory cache

@@ -3,6 +3,10 @@
 package server
 
 import (
+	"atvenupgstream/pkg/log"
+	"atvenupgstream/pkg/wal/processor/webhook/subscription"
+	"atvenupgstream/pkg/wal/processor/webhook/subscription/store"
+	"atvenupgstream/pkg/wal/processor/webhook/subscription/store/mocks"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -14,10 +18,6 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription/store"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription/store/mocks"
 )
 
 func TestSubscriptionServer_subscribe(t *testing.T) {

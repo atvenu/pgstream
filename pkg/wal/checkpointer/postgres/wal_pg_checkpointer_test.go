@@ -3,15 +3,16 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/replication"
 	"context"
 	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/replication"
-	replicationmocks "github.com/xataio/pgstream/pkg/wal/replication/mocks"
+
+	replicationmocks "atvenupgstream/pkg/wal/replication/mocks"
 )
 
 func TestCheckpointer_SyncLSN(t *testing.T) {

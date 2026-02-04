@@ -3,15 +3,15 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/wal"
 	"context"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/wal"
+	pglib "atvenupgstream/internal/postgres"
 )
 
 type ddlAdapter struct {

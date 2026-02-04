@@ -3,12 +3,12 @@
 package adapter
 
 import (
+	"atvenupgstream/pkg/snapshot"
+	"atvenupgstream/pkg/snapshot/generator"
 	"context"
 	"time"
 
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/snapshot"
-	"github.com/xataio/pgstream/pkg/snapshot/generator"
+	loglib "atvenupgstream/pkg/log"
 )
 
 // SnapshotGeneratorAdapter adapts a snapshot generator to work with WAL events

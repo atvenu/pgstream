@@ -3,16 +3,16 @@
 package tablefinder
 
 import (
+	"atvenupgstream/pkg/snapshot"
+	"atvenupgstream/pkg/snapshot/generator"
+	"atvenupgstream/pkg/snapshot/generator/mocks"
 	"context"
 	"errors"
 	"testing"
 
+	pglib "atvenupgstream/internal/postgres"
+	pgmocks "atvenupgstream/internal/postgres/mocks"
 	"github.com/stretchr/testify/require"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	pgmocks "github.com/xataio/pgstream/internal/postgres/mocks"
-	"github.com/xataio/pgstream/pkg/snapshot"
-	"github.com/xataio/pgstream/pkg/snapshot/generator"
-	"github.com/xataio/pgstream/pkg/snapshot/generator/mocks"
 )
 
 func TestSnapshotTableFinder_CreateSnapshot(t *testing.T) {

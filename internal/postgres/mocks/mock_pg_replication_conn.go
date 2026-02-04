@@ -3,9 +3,8 @@
 package mocks
 
 import (
+	"atvenupgstream/internal/postgres"
 	"context"
-
-	"github.com/xataio/pgstream/internal/postgres"
 )
 
 type ReplicationConn struct {

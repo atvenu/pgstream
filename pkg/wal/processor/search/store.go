@@ -3,9 +3,8 @@
 package search
 
 import (
+	"atvenupgstream/pkg/schemalog"
 	"context"
-
-	"github.com/xataio/pgstream/pkg/schemalog"
 )
 
 type Store interface {

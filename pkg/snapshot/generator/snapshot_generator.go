@@ -3,9 +3,8 @@
 package generator
 
 import (
+	"atvenupgstream/pkg/snapshot"
 	"context"
-
-	"github.com/xataio/pgstream/pkg/snapshot"
 )
 
 type SnapshotGenerator interface {

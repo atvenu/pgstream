@@ -2,7 +2,7 @@
 
 package kafka
 
-import tlslib "github.com/xataio/pgstream/pkg/tls"
+import tlslib "atvenupgstream/pkg/tls"
 
 type ConnConfig struct {
 	Servers []string

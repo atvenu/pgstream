@@ -7,7 +7,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	loglib "github.com/xataio/pgstream/pkg/log"
+	loglib "atvenupgstream/pkg/log"
 )
 
 type Logger struct {

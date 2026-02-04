@@ -3,6 +3,7 @@
 package main
 
 import (
+	"atvenupgstream/cmd"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/xataio/pgstream/cmd"
 )
 
 type Result struct {

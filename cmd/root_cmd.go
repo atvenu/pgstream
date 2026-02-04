@@ -3,6 +3,9 @@
 package cmd
 
 import (
+	"atvenupgstream/cmd/config"
+	"atvenupgstream/internal/profiling"
+	"atvenupgstream/pkg/otel"
 	"context"
 	"fmt"
 	"os"
@@ -11,10 +14,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-
-	"github.com/xataio/pgstream/cmd/config"
-	"github.com/xataio/pgstream/internal/profiling"
-	"github.com/xataio/pgstream/pkg/otel"
 )
 
 // Version is the pgstream version

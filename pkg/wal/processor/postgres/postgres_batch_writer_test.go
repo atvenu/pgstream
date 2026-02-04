@@ -3,22 +3,23 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/checkpointer"
+	"atvenupgstream/pkg/wal/processor"
+	"atvenupgstream/pkg/wal/processor/batch"
 	"context"
 	"errors"
 	"fmt"
 	"testing"
 	"time"
 
+	pglib "atvenupgstream/internal/postgres"
+	pgmocks "atvenupgstream/internal/postgres/mocks"
+	loglib "atvenupgstream/pkg/log"
+	schemalogpg "atvenupgstream/pkg/schemalog/postgres"
 	"github.com/stretchr/testify/require"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	pgmocks "github.com/xataio/pgstream/internal/postgres/mocks"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	schemalogpg "github.com/xataio/pgstream/pkg/schemalog/postgres"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/checkpointer"
-	"github.com/xataio/pgstream/pkg/wal/processor"
-	"github.com/xataio/pgstream/pkg/wal/processor/batch"
-	batchmocks "github.com/xataio/pgstream/pkg/wal/processor/batch/mocks"
+
+	batchmocks "atvenupgstream/pkg/wal/processor/batch/mocks"
 )
 
 var (

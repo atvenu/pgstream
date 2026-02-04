@@ -3,12 +3,12 @@
 package config
 
 import (
+	"atvenupgstream/pkg/otel"
 	"testing"
 	"time"
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/otel"
 )
 
 func TestYAMLConfig_toStreamConfig(t *testing.T) {

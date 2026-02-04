@@ -3,24 +3,26 @@
 package stream
 
 import (
+	"atvenupgstream/pkg/backoff"
+	"atvenupgstream/pkg/kafka"
+	"atvenupgstream/pkg/wal/processor/filter"
+	"atvenupgstream/pkg/wal/processor/injector"
+	"atvenupgstream/pkg/wal/processor/postgres"
+	"atvenupgstream/pkg/wal/processor/search"
+	"atvenupgstream/pkg/wal/processor/search/store"
+	"atvenupgstream/pkg/wal/processor/transformer"
+	"atvenupgstream/pkg/wal/processor/webhook/notifier"
+	"atvenupgstream/pkg/wal/processor/webhook/subscription/server"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/xataio/pgstream/pkg/backoff"
-	"github.com/xataio/pgstream/pkg/kafka"
-	kafkacheckpoint "github.com/xataio/pgstream/pkg/wal/checkpointer/kafka"
-	snapshotbuilder "github.com/xataio/pgstream/pkg/wal/listener/snapshot/builder"
-	"github.com/xataio/pgstream/pkg/wal/processor/filter"
-	"github.com/xataio/pgstream/pkg/wal/processor/injector"
-	kafkaprocessor "github.com/xataio/pgstream/pkg/wal/processor/kafka"
-	"github.com/xataio/pgstream/pkg/wal/processor/postgres"
-	"github.com/xataio/pgstream/pkg/wal/processor/search"
-	"github.com/xataio/pgstream/pkg/wal/processor/search/store"
-	"github.com/xataio/pgstream/pkg/wal/processor/transformer"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/notifier"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription/server"
-	pgreplication "github.com/xataio/pgstream/pkg/wal/replication/postgres"
+	kafkacheckpoint "atvenupgstream/pkg/wal/checkpointer/kafka"
+	snapshotbuilder "atvenupgstream/pkg/wal/listener/snapshot/builder"
+
+	kafkaprocessor "atvenupgstream/pkg/wal/processor/kafka"
+
+	pgreplication "atvenupgstream/pkg/wal/replication/postgres"
 )
 
 type Config struct {

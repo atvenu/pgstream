@@ -3,14 +3,14 @@
 package cache
 
 import (
+	"atvenupgstream/pkg/wal/processor/webhook/subscription"
+	"atvenupgstream/pkg/wal/processor/webhook/subscription/store"
+	"atvenupgstream/pkg/wal/processor/webhook/subscription/store/mocks"
 	"context"
 	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription/store"
-	"github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription/store/mocks"
 )
 
 func TestSubscriptionStoreCache_NewSubscriptionStoreCache(t *testing.T) {

@@ -3,6 +3,7 @@
 package opensearch
 
 import (
+	"atvenupgstream/internal/searchstore"
 	"bufio"
 	"bytes"
 	"context"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/opensearch-project/opensearch-go"
 	"github.com/opensearch-project/opensearch-go/opensearchapi"
-	"github.com/xataio/pgstream/internal/searchstore"
 )
 
 type Client struct {

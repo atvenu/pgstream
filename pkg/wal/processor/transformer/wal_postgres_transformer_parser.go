@@ -3,15 +3,16 @@
 package transformer
 
 import (
+	"atvenupgstream/pkg/transformers"
 	"context"
 	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	"github.com/xataio/pgstream/pkg/transformers"
+	pglib "atvenupgstream/internal/postgres"
+	"github.com/atvenu/pgx/pgconn"
+	"github.com/atvenu/pgx/pgtype"
+
 	"golang.org/x/exp/slices"
 )
 

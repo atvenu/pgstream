@@ -3,6 +3,11 @@
 package integration
 
 import (
+	"atvenupgstream/pkg/kafka"
+	"atvenupgstream/pkg/log"
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/stream"
+	"atvenupgstream/pkg/wal"
 	"context"
 	"fmt"
 	"os"
@@ -10,12 +15,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/xataio/pgstream/pkg/kafka"
-	"github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/stream"
-	"github.com/xataio/pgstream/pkg/wal"
-	kafkalistener "github.com/xataio/pgstream/pkg/wal/listener/kafka"
+
+	kafkalistener "atvenupgstream/pkg/wal/listener/kafka"
 )
 
 func Test_PostgresToKafka(t *testing.T) {

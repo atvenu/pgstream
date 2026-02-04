@@ -3,16 +3,16 @@
 package batch
 
 import (
+	"atvenupgstream/pkg/log"
+	"atvenupgstream/pkg/wal"
 	"context"
 	"errors"
 	"sync"
 	"testing"
 	"time"
 
+	syncmocks "atvenupgstream/internal/sync/mocks"
 	"github.com/stretchr/testify/require"
-	syncmocks "github.com/xataio/pgstream/internal/sync/mocks"
-	"github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/wal"
 )
 
 func TestSender_SendMessage(t *testing.T) {

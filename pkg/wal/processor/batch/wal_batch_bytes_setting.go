@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"math"
 
-	mathlib "github.com/xataio/pgstream/internal/math"
+	mathlib "atvenupgstream/internal/math"
 )
 
 // batchBytesSetting represents a specific setting for the batch bytes size. It

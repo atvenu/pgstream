@@ -3,14 +3,14 @@
 package postgres
 
 import (
+	"atvenupgstream/pkg/wal"
 	"context"
 	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	pglib "github.com/xataio/pgstream/internal/postgres"
-	"github.com/xataio/pgstream/pkg/wal"
+	pglib "atvenupgstream/internal/postgres"
 )
 
 type mockProcessor struct {

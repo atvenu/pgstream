@@ -3,17 +3,17 @@
 package schemalog
 
 import (
+	"atvenupgstream/internal/json"
+	"atvenupgstream/pkg/schemalog"
+	"atvenupgstream/pkg/snapshot"
+	"atvenupgstream/pkg/snapshot/generator"
+	"atvenupgstream/pkg/wal"
+	"atvenupgstream/pkg/wal/processor"
 	"context"
 	"fmt"
 	"time"
 
-	"github.com/xataio/pgstream/internal/json"
-	loglib "github.com/xataio/pgstream/pkg/log"
-	"github.com/xataio/pgstream/pkg/schemalog"
-	"github.com/xataio/pgstream/pkg/snapshot"
-	"github.com/xataio/pgstream/pkg/snapshot/generator"
-	"github.com/xataio/pgstream/pkg/wal"
-	"github.com/xataio/pgstream/pkg/wal/processor"
+	loglib "atvenupgstream/pkg/log"
 )
 
 type SnapshotGenerator struct {
