@@ -27,7 +27,7 @@ func Test_PostgresToPostgres_BatchCoalesce(t *testing.T) {
 	}
 
 	cfg := &stream.Config{
-		Listener: testPostgresListenerCfg(),
+		Listener: testPostgresListenerCfg(t),
 		Processor: stream.ProcessorConfig{
 			Postgres: &stream.PostgresProcessorConfig{
 				BatchWriter: postgres.Config{
@@ -195,7 +195,7 @@ func Test_PostgresToPostgres_BatchCoalesce_WithCompositeKey(t *testing.T) {
 	}
 
 	cfg := &stream.Config{
-		Listener: testPostgresListenerCfg(),
+		Listener: testPostgresListenerCfg(t),
 		Processor: stream.ProcessorConfig{
 			Postgres: &stream.PostgresProcessorConfig{
 				BatchWriter: postgres.Config{
@@ -247,7 +247,7 @@ func Test_PostgresToPostgres_BatchCoalesce_WithCompositeKey(t *testing.T) {
 		return count == numRows
 	}, 30*time.Second, 500*time.Millisecond, "composite key bulk insert not replicated")
 
-	// Bulk delete half the rows — these use composite PK IN tuples path
+	// Bulk delete half the rows — these use the composite PK unnest path
 	execQuery(t, ctx, fmt.Sprintf(
 		"DELETE FROM %s WHERE item_id <= %d", testTable, numRows/2))
 
@@ -270,7 +270,7 @@ func Test_PostgresToPostgres_BatchCoalesce_OnConflict(t *testing.T) {
 	}
 
 	cfg := &stream.Config{
-		Listener: testPostgresListenerCfg(),
+		Listener: testPostgresListenerCfg(t),
 		Processor: stream.ProcessorConfig{
 			Postgres: &stream.PostgresProcessorConfig{
 				BatchWriter: postgres.Config{

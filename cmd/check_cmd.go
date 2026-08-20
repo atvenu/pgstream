@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: Apache-2.0
+
+package cmd
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/pterm/pterm"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
+	"github.com/xataio/pgstream/cmd/config"
+	"github.com/xataio/pgstream/pkg/stream"
+	"github.com/xataio/pgstream/pkg/stream/preflight"
+)
+
+var errCheckFailed = errors.New("checks reported errors")
+
+// selectedCategories returns the categories whose CLI flag was set to true.
+// An empty result tells preflight.BuildChecks to run every registered category.
+func selectedCategories(cmd *cobra.Command) []preflight.Category {
+	var selected []preflight.Category
+	for _, b := range preflight.Builders {
+		if on, _ := cmd.Flags().GetBool(b.Flag); on {
+			selected = append(selected, b.Category)
+		}
+	}
+	return selected
+}
+
+// applySourceScope restricts the run to checks that only query the source when
+// srcOnly is set.
+func applySourceScope(cfg *stream.Config, srcOnly bool) {
+	if srcOnly && cfg.Processor.Postgres != nil {
+		cfg.Processor.Postgres.BatchWriter.URL = ""
+	}
+}
+
+var checkCmd = &cobra.Command{
+	Use:     "check",
+	Short:   "Runs pre-migration checks to catch blocking issues before snapshot/run",
+	PreRunE: checkFlagBinding,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		sp, _ := pterm.DefaultSpinner.WithText("running pgstream checks...").Start()
+
+		err := func() (retErr error) {
+			streamConfig, err := config.ParseStreamConfig()
+			if err != nil {
+				return fmt.Errorf("parsing stream config: %w", err)
+			}
+			if err := streamConfig.IsValid(); err != nil {
+				return fmt.Errorf("validating stream config: %w", err)
+			}
+
+			srcOnly, _ := cmd.Flags().GetBool("source")
+			applySourceScope(streamConfig, srcOnly)
+
+			checks, cleanup := preflight.BuildChecks(streamConfig, selectedCategories(cmd))
+			defer func() {
+				if cerr := cleanup(context.Background()); cerr != nil && retErr == nil {
+					retErr = fmt.Errorf("releasing check resources: %w", cerr)
+				}
+			}()
+
+			if len(checks) == 0 {
+				sp.Success("no checks to run")
+				return nil
+			}
+
+			report := preflight.Run(context.Background(), checks, preflight.WithProgress(func(idx, total int, name string) {
+				sp.UpdateText(fmt.Sprintf("running %d/%d checks: %s", idx, total, name))
+			}))
+
+			if report.HasErrors() {
+				sp.Stop()
+			} else {
+				sp.Success("pgstream checks passed")
+			}
+
+			if err := print(cmd, preflight.ReportPrinter{Report: report}); err != nil {
+				return fmt.Errorf("failed to format check report: %w", err)
+			}
+
+			if report.HasErrors() {
+				return errCheckFailed
+			}
+			return nil
+		}()
+		if err != nil && !errors.Is(err, errCheckFailed) {
+			sp.Fail(err.Error())
+		}
+
+		return err
+	},
+	Example: `
+	pgstream check -c pg2pg.env
+	pgstream check -c pg2pg.yaml --json
+	`,
+}
+
+func checkFlagBinding(cmd *cobra.Command, _ []string) error {
+	// to be able to overwrite configuration with flags when yaml config file is
+	// provided
+	viper.BindPFlag("source.postgres.url", cmd.Flags().Lookup("postgres-url"))
+	viper.BindPFlag("target.postgres.url", cmd.Flags().Lookup("target-url"))
+
+	// to be able to overwrite configuration with flags when env config file is
+	// provided or when no configuration is provided
+	viper.BindPFlag("PGSTREAM_POSTGRES_LISTENER_URL", cmd.Flags().Lookup("postgres-url"))
+	viper.BindPFlag("PGSTREAM_POSTGRES_WRITER_TARGET_URL", cmd.Flags().Lookup("target-url"))
+	return nil
+}

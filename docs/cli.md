@@ -42,11 +42,15 @@ brew install pgstream
 
 These flags are available for all commands:
 
-| Flag             | Description                                                                         | Default |
-| ---------------- | ----------------------------------------------------------------------------------- | ------- |
-| `--config`, `-c` | .env or .yaml config file to use with pgstream if any                               | -       |
-| `--log-level`    | Log level for the application. One of trace, debug, info, warn, error, fatal, panic | `debug` |
-| `--help`, `-h`   | Show help information                                                               | -       |
+| Flag             | Description                                                                         | Default   |
+| ---------------- | ----------------------------------------------------------------------------------- | --------- |
+| `--config`, `-c` | .env or .yaml config file to use with pgstream if any                               | -         |
+| `--log-level`    | Log level for the application. One of trace, debug, info, warn, error, fatal, panic | `debug`   |
+| `--log-format`   | Log output format. One of `console` (human-readable) or `json` (structured)         | `console` |
+| `--no-color`     | Disable ANSI color codes in console log output (ignored when `--log-format=json`)   | `false`   |
+| `--help`, `-h`   | Show help information                                                               | -         |
+
+Every global flag also has an equivalent `PGSTREAM_`-prefixed environment variable (for example, `PGSTREAM_LOG_FORMAT=json`, `PGSTREAM_LOG_NO_COLOR=true`). Use `--log-format=json` when shipping logs to cloud aggregators like GCP Cloud Logging or Datadog that parse structured JSON.
 
 ## Commands
 
@@ -79,6 +83,7 @@ The `init` command prepares your PostgreSQL database for streaming by:
 - `--replication-slot` - Name of the postgres replication slot to be created by pgstream on the source url
 - `--with-injector` - Whether to initialize pgstream with the injector database migrations. Required for search targets (OpenSearch/Elasticsearch)
 - `--migrations-only` - Whether to only run the database migrations without creating the replication slot
+- `--slot-only` - Whether to only create the replication slot, without running the database migrations
 
 **Examples:**
 
@@ -87,9 +92,12 @@ pgstream init --postgres-url <source-postgres-url> --replication-slot <replicati
 pgstream init -c config.yaml
 pgstream init -c config.env
 pgstream init -c config.yaml --migrations-only
+pgstream init --postgres-url <replica-postgres-url> --slot-only
 ```
 
 **Note:** The `--migrations-only` flag runs only the database migrations (creating the pgstream schema, tables, functions, and triggers) without creating the replication slot. This is useful when you want to set up the schema separately or when using different database credentials for migrations versus replication.
+
+**Note:** The `--slot-only` flag is the complement: it creates only the replication slot, skipping the schema and migrations entirely. This is what a **read replica** source needs, since a standby is read only and cannot take the migrations, while the schema and event trigger reach it through physical replication from the primary. See [Running pgstream from a read replica](replicas.md). The two flags are mutually exclusive.
 
 ### run
 
@@ -126,10 +134,11 @@ The `run` command is the main operation mode for pgstream. It:
 - `--target-url` - Target URL
 - `--replication-slot` - Name of the postgres replication slot for pgstream to connect to
 - `--snapshot-tables` - List of tables to snapshot if initial snapshot is required, in the format `<schema>.<table>`. If not specified, the schema `public` will be assumed. Wildcards are supported
-- `--reset` - Whether to reset the target before snapshotting (only for postgres target)
+- `--reset` - Whether to reset the target before snapshotting (only for postgres target). ⚠️ Destructive: the target objects are dropped before the table data is copied, so a snapshot that fails afterwards leaves the target partially rebuilt with the previous contents gone. See [resetting the target](snapshots.md#️-resetting-the-target-destroys-it-before-the-new-data-lands)
 - `--profile` - Whether to expose a /debug/pprof endpoint on localhost:6060
 - `--init` - Whether to initialize pgstream before starting replication
 - `--dump-file` - File where the pg_dump output will be written if initial snapshot is enabled when using pgdump/restore
+- `--data-only` - When used with `--snapshot-tables`, skip schema restore and only snapshot data. Use this when the schema is already present on the target. Defaults to `false`
 - `--with-injector` - Whether to enable the injection of pgstream metadata to the WAL events. Required for search targets (OpenSearch/Elasticsearch)
 
 **Examples:**
@@ -150,7 +159,7 @@ pgstream run --config config.env
 
 ### snapshot
 
-Snapshot performs a snapshot of the configured source Postgres database into the configured target.
+Snapshot performs a one-time data snapshot of a PostgreSQL database. For continuous replication or combined snapshot+replication, use the `run` command with `--snapshot-tables` flag.
 
 ```bash
 pgstream snapshot [flags]
@@ -177,15 +186,18 @@ The `snapshot` command creates a point-in-time copy of database tables. It:
 - `--target` - Target type. One of postgres, opensearch, elasticsearch, kafka
 - `--target-url` - Target URL
 - `--tables` - List of tables to snapshot, in the format `<schema>.<table>`. If not specified, the schema `public` will be assumed. Wildcards are supported
-- `--reset` - Whether to reset the target before snapshotting (only for postgres target)
+- `--reset` - Whether to reset the target before snapshotting (only for postgres target). ⚠️ Destructive: the target objects are dropped before the table data is copied, so a snapshot that fails afterwards leaves the target partially rebuilt with the previous contents gone. See [resetting the target](snapshots.md#️-resetting-the-target-destroys-it-before-the-new-data-lands)
 - `--profile` - Whether to produce CPU and memory profile files, as well as exposing a /debug/pprof endpoint on localhost:6060
 - `--dump-file` - File where the pg_dump output will be written
 
 **Examples:**
 
 ```bash
+# Snapshot specific tables from a PostgreSQL database to a target PostgreSQL database
 pgstream snapshot --postgres-url <postgres-url> --target postgres --target-url <target-url> --tables <schema.table> --reset
+# Snapshot using a YAML configuration file (requires source.postgres.mode: 'snapshot')
 pgstream snapshot --config config.yaml --log-level info
+# Snapshot using an environment configuration file
 pgstream snapshot --config config.env
 ```
 
@@ -264,7 +276,7 @@ pgstream validate <subcommand> [flags]
 ```
 
 **Description:**
-The `validate` command allows you to validate specific aspects of your pgstream configuration before running it. Currently supports validating transformation rules.
+The `validate` command allows you to validate specific aspects of your pgstream configuration before running it. It currently supports validating transformation rules.
 
 #### validate rules
 
@@ -346,6 +358,7 @@ The `destroy` command cleans up all resources created by `pgstream init`:
 - `--replication-slot` - Name of the postgres replication slot to be deleted by pgstream from the source url
 - `--with-injector` - Whether to also destroy the injector related database objects
 - `--migrations-only` - Whether to only revert the database migrations without dropping the replication slot
+- `--slot-only` - Whether to only drop the replication slot, leaving the pgstream schema and migrations in place
 
 **Examples:**
 
@@ -354,9 +367,12 @@ pgstream destroy --postgres-url <source-postgres-url> --replication-slot <replic
 pgstream destroy -c config.yaml
 pgstream destroy -c config.env
 pgstream destroy -c config.yaml --migrations-only
+pgstream destroy --postgres-url <postgres-url> --slot-only
 ```
 
 **Note:** The `--migrations-only` flag reverts only the database migrations (removing the pgstream schema, tables, functions, and triggers) without dropping the pgstream schema (with any tables that it might contain, such as the snapshot recorder), or dropping the replication slot. This is useful for minimal downtime migrations where you want to preserve the replication slot position.
+
+**Note:** The `--slot-only` flag is the complement: it drops only the replication slot and leaves the pgstream schema and the `emit_ddl` event trigger in place. Use it to remove a slot that is no longer consumed — an unused logical slot pins WAL indefinitely — without disturbing DDL replication for anything still streaming. The two flags are mutually exclusive.
 
 **⚠️ Important Notes:**
 
@@ -466,6 +482,7 @@ pgstream run --source kafka --source-url "localhost:9092" --target opensearch --
 export PGSTREAM_POSTGRES_LISTENER_URL="postgres://user:pass@localhost:5432/source_db"
 export PGSTREAM_POSTGRES_REPLICATION_SLOT_NAME="pgstream_slot"
 export PGSTREAM_LOG_LEVEL="info"
+export PGSTREAM_LOG_FORMAT="json"
 
 # Run with environment configuration
 pgstream init

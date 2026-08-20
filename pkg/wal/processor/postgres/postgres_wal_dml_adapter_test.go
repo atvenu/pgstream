@@ -29,12 +29,13 @@ func TestDMLAdapter_walDataToQueries(t *testing.T) {
 	now := time.Now()
 
 	tests := []struct {
-		name             string
-		walData          *wal.Data
-		action           onConflictAction
-		generatedColumns map[string]struct{}
-		sequenceColumns  map[string]string
-		forCopy          bool
+		name                  string
+		walData               *wal.Data
+		action                onConflictAction
+		generatedColumns      map[string]struct{}
+		alwaysIdentityColumns map[string]struct{}
+		sequenceColumns       map[string]string
+		forCopy               bool
 
 		wantQueries []*query
 		wantErr     error
@@ -220,6 +221,41 @@ func TestDMLAdapter_walDataToQueries(t *testing.T) {
 					table:  testTable,
 					sql:    "SELECT setval($1::regclass, $2::bigint, true)",
 					args:   []any{`"id_seq"`, int64(1)},
+				},
+			},
+		},
+		{
+			name: "insert with int64 sequence value preserves precision above 2^53",
+			walData: &wal.Data{
+				Action: "I",
+				Schema: testSchema,
+				Table:  testTable,
+				Columns: []wal.Column{
+					{ID: columnID(1), Name: "id", Value: int64(9007199254740993)},
+					{ID: columnID(2), Name: "name", Value: "alice"},
+				},
+				Metadata: wal.Metadata{
+					InternalColIDs: []string{columnID(1)},
+				},
+			},
+			sequenceColumns: map[string]string{
+				`"id"`: `"id_seq"`,
+			},
+			forCopy: false,
+
+			wantQueries: []*query{
+				{
+					schema:      testSchema,
+					table:       testTable,
+					columnNames: quotedColumnNames,
+					sql:         fmt.Sprintf("INSERT INTO %s(\"id\", \"name\") OVERRIDING SYSTEM VALUE VALUES($1, $2)", quotedTestTable),
+					args:        []any{int64(9007199254740993), "alice"},
+				},
+				{
+					schema: testSchema,
+					table:  testTable,
+					sql:    "SELECT setval($1::regclass, $2::bigint, true)",
+					args:   []any{`"id_seq"`, int64(9007199254740993)},
 				},
 			},
 		},
@@ -426,6 +462,58 @@ func TestDMLAdapter_walDataToQueries(t *testing.T) {
 			},
 		},
 		{
+			name: "insert with tsvector - for copy enabled",
+			walData: &wal.Data{
+				Action: "I",
+				Schema: testSchema,
+				Table:  testTable,
+				Columns: []wal.Column{
+					{ID: columnID(1), Name: "id", Value: 1},
+					{ID: columnID(2), Name: "search_vec", Value: []byte("'hello':1 'world':2"), Type: "tsvector"},
+				},
+				Metadata: wal.Metadata{
+					InternalColIDs: []string{columnID(1)},
+				},
+			},
+			forCopy: true,
+
+			wantQueries: []*query{
+				{
+					schema:      testSchema,
+					table:       testTable,
+					columnNames: []string{`"id"`, `"search_vec"`},
+					sql:         fmt.Sprintf("INSERT INTO %s(\"id\", \"search_vec\") OVERRIDING SYSTEM VALUE VALUES($1, $2)", quotedTestTable),
+					args:        []any{1, "'hello':1 'world':2"},
+				},
+			},
+		},
+		{
+			name: "insert with tsvector string - for copy enabled",
+			walData: &wal.Data{
+				Action: "I",
+				Schema: testSchema,
+				Table:  testTable,
+				Columns: []wal.Column{
+					{ID: columnID(1), Name: "id", Value: 1},
+					{ID: columnID(2), Name: "search_vec", Value: "'hello':1 'world':2", Type: "tsvector"},
+				},
+				Metadata: wal.Metadata{
+					InternalColIDs: []string{columnID(1)},
+				},
+			},
+			forCopy: true,
+
+			wantQueries: []*query{
+				{
+					schema:      testSchema,
+					table:       testTable,
+					columnNames: []string{`"id"`, `"search_vec"`},
+					sql:         fmt.Sprintf("INSERT INTO %s(\"id\", \"search_vec\") OVERRIDING SYSTEM VALUE VALUES($1, $2)", quotedTestTable),
+					args:        []any{1, "'hello':1 'world':2"},
+				},
+			},
+		},
+		{
 			name: "insert with enum array - for copy enabled",
 			walData: &wal.Data{
 				Action: "I",
@@ -527,6 +615,32 @@ func TestDMLAdapter_walDataToQueries(t *testing.T) {
 					table:       testTable,
 					columnNames: quotedColumnNames,
 					sql:         fmt.Sprintf("INSERT INTO %s(\"id\", \"name\") OVERRIDING SYSTEM VALUE VALUES($1, $2) ON CONFLICT (\"id\") DO UPDATE SET \"id\" = EXCLUDED.\"id\", \"name\" = EXCLUDED.\"name\"", quotedTestTable),
+					args:        []any{1, "alice"},
+				},
+			},
+		},
+		{
+			name: "insert - on conflict do update with composite primary key",
+			walData: &wal.Data{
+				Action: "I",
+				Schema: testSchema,
+				Table:  testTable,
+				Columns: []wal.Column{
+					{ID: columnID(1), Name: "id", Value: 1},
+					{ID: columnID(2), Name: "name", Value: "alice"},
+				},
+				Metadata: wal.Metadata{
+					InternalColIDs: []string{columnID(1), columnID(2)},
+				},
+			},
+			action: onConflictUpdate,
+
+			wantQueries: []*query{
+				{
+					schema:      testSchema,
+					table:       testTable,
+					columnNames: quotedColumnNames,
+					sql:         fmt.Sprintf("INSERT INTO %s(\"id\", \"name\") OVERRIDING SYSTEM VALUE VALUES($1, $2) ON CONFLICT (\"id\",\"name\") DO UPDATE SET \"id\" = EXCLUDED.\"id\", \"name\" = EXCLUDED.\"name\"", quotedTestTable),
 					args:        []any{1, "alice"},
 				},
 			},
@@ -660,6 +774,63 @@ func TestDMLAdapter_walDataToQueries(t *testing.T) {
 			},
 		},
 		{
+			// regression: previously the always-identity column was included
+			// in the SET clause, which Postgres rejects with
+			// "column ... can only be updated to DEFAULT".
+			name: "update - with always-identity column filtered from SET",
+			walData: &wal.Data{
+				Action: "U",
+				Schema: testSchema,
+				Table:  testTable,
+				Columns: []wal.Column{
+					{ID: columnID(1), Name: "id", Value: 1},
+					{ID: columnID(2), Name: "request_id", Value: 42},
+					{ID: columnID(3), Name: "name", Value: "alice"},
+				},
+				Identity: []wal.Column{
+					{ID: columnID(1), Name: "id", Value: 1},
+				},
+				Metadata: wal.Metadata{},
+			},
+			alwaysIdentityColumns: map[string]struct{}{`"request_id"`: {}},
+
+			wantQueries: []*query{
+				{
+					schema: testSchema,
+					table:  testTable,
+					sql:    fmt.Sprintf("UPDATE %s SET \"id\" = $1, \"name\" = $2 WHERE \"id\" = $3", quotedTestTable),
+					args:   []any{1, "alice", 1},
+				},
+			},
+		},
+		{
+			// always-identity columns are kept in INSERTs since OVERRIDING
+			// SYSTEM VALUE lets Postgres accept the explicit value.
+			name: "insert - with always-identity column kept",
+			walData: &wal.Data{
+				Action: "I",
+				Schema: testSchema,
+				Table:  testTable,
+				Columns: []wal.Column{
+					{ID: columnID(1), Name: "id", Value: 1},
+					{ID: columnID(2), Name: "request_id", Value: 42},
+					{ID: columnID(3), Name: "name", Value: "alice"},
+				},
+				Metadata: wal.Metadata{},
+			},
+			alwaysIdentityColumns: map[string]struct{}{`"request_id"`: {}},
+
+			wantQueries: []*query{
+				{
+					schema:      testSchema,
+					table:       testTable,
+					columnNames: []string{`"id"`, `"request_id"`, `"name"`},
+					sql:         fmt.Sprintf("INSERT INTO %s(\"id\", \"request_id\", \"name\") OVERRIDING SYSTEM VALUE VALUES($1, $2, $3)", quotedTestTable),
+					args:        []any{1, 42, "alice"},
+				},
+			},
+		},
+		{
 			name: "update - with generated column",
 			walData: &wal.Data{
 				Action: "U",
@@ -733,13 +904,78 @@ func TestDMLAdapter_walDataToQueries(t *testing.T) {
 				pgTypeMap:        pgtype.NewMap(),
 			}
 			queries, err := a.walDataToQueries(tc.walData, schemaInfo{
-				generatedColumns: tc.generatedColumns,
-				sequenceColumns:  tc.sequenceColumns,
+				generatedColumns:      tc.generatedColumns,
+				alwaysIdentityColumns: tc.alwaysIdentityColumns,
+				sequenceColumns:       tc.sequenceColumns,
 			})
 			require.ErrorIs(t, err, tc.wantErr)
 			require.Equal(t, tc.wantQueries, queries)
 		})
 	}
+}
+
+func Test_needsTextCopyForColumns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		columnNames []string
+		columnTypes []string
+		enumColumns map[string]enumColumn
+
+		want bool
+	}{
+		{
+			name:        "no text-only columns",
+			columnNames: []string{`"id"`, `"name"`},
+			columnTypes: []string{"integer", "text"},
+			enumColumns: nil,
+			want:        false,
+		},
+		{
+			name:        "static text-only type",
+			columnNames: []string{`"id"`, `"location"`},
+			columnTypes: []string{"integer", "ltree"},
+			enumColumns: nil,
+			want:        true,
+		},
+		{
+			name:        "enum column",
+			columnNames: []string{`"id"`, `"mood"`},
+			columnTypes: []string{"integer", "mood"},
+			enumColumns: map[string]enumColumn{`"mood"`: {enumType: "public.mood"}},
+			want:        true,
+		},
+		{
+			name:        "enum type present but column filtered out",
+			columnNames: []string{`"id"`},
+			columnTypes: []string{"integer"},
+			enumColumns: map[string]enumColumn{`"mood"`: {enumType: "public.mood"}},
+			want:        false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, needsTextCopyForColumns(tc.columnNames, tc.columnTypes, tc.enumColumns))
+		})
+	}
+}
+
+func Test_updateValueForCopy_enumArray(t *testing.T) {
+	t.Parallel()
+
+	a := newTestDMLAdapterForCopy(t)
+
+	// A non-enum array is parsed into a Go slice so pgx's binary COPY encoder
+	// can handle it.
+	require.Equal(t, []string{"a", "b"}, a.updateValueForCopy("{a,b}", "text[]", false))
+
+	// An array of a user-defined enum goes out through text-format COPY, which
+	// writes the postgres array literal verbatim — parsing it into a slice here
+	// would leave the text encoder with a value it cannot render.
+	require.Equal(t, "{happy,sad}", a.updateValueForCopy("{happy,sad}", "mood[]", true))
 }
 
 func Test_newDMLAdapter(t *testing.T) {
@@ -786,9 +1022,11 @@ func TestDMLAdapter_filterRowColumns(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name             string
-		generatedColumns map[string]struct{}
-		columns          []wal.Column
+		name                  string
+		generatedColumns      map[string]struct{}
+		alwaysIdentityColumns map[string]struct{}
+		forUpdate             bool
+		columns               []wal.Column
 
 		wantColumns []string
 		wantValues  []any
@@ -827,6 +1065,34 @@ func TestDMLAdapter_filterRowColumns(t *testing.T) {
 			wantColumns: []string{`"id"`, `"name"`},
 			wantValues:  []any{1, "alice"},
 		},
+		{
+			// always-identity columns are NOT filtered for INSERT — the
+			// builder uses OVERRIDING SYSTEM VALUE.
+			name:                  "always-identity kept for insert",
+			alwaysIdentityColumns: map[string]struct{}{`"id"`: {}},
+			forUpdate:             false,
+			columns: []wal.Column{
+				{Name: "id", Value: 1},
+				{Name: "name", Value: "alice"},
+			},
+
+			wantColumns: []string{`"id"`, `"name"`},
+			wantValues:  []any{1, "alice"},
+		},
+		{
+			// always-identity columns ARE filtered for UPDATE — Postgres
+			// rejects explicit values in SET for GENERATED ALWAYS columns.
+			name:                  "always-identity filtered for update",
+			alwaysIdentityColumns: map[string]struct{}{`"id"`: {}},
+			forUpdate:             true,
+			columns: []wal.Column{
+				{Name: "id", Value: 1},
+				{Name: "name", Value: "alice"},
+			},
+
+			wantColumns: []string{`"name"`},
+			wantValues:  []any{"alice"},
+		},
 	}
 
 	for _, tc := range tests {
@@ -834,9 +1100,10 @@ func TestDMLAdapter_filterRowColumns(t *testing.T) {
 			t.Parallel()
 
 			a := dmlAdapter{}
-			rowColumns, rowValues := a.filterRowColumns(tc.columns, schemaInfo{
-				generatedColumns: tc.generatedColumns,
-			})
+			rowColumns, _, rowValues := a.filterRowColumnsForAction(tc.columns, schemaInfo{
+				generatedColumns:      tc.generatedColumns,
+				alwaysIdentityColumns: tc.alwaysIdentityColumns,
+			}, tc.forUpdate)
 			require.Equal(t, tc.wantColumns, rowColumns)
 			require.Equal(t, tc.wantValues, rowValues)
 		})

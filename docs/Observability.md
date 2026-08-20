@@ -64,6 +64,18 @@ All metrics follow the `pgstream.*` naming convention and include relevant attri
 
 **⚠️ Important:** This metric only tracks pgstream's consumer lag. It's strongly recommended to also monitor your source PostgreSQL metrics, particularly the built-in replication lag metrics (`pg_stat_replication.flush_lag`, `pg_stat_replication.replay_lag`) to get a complete picture of replication health.
 
+### Pipeline Phase
+
+| Metric                     | Type            | Unit | Description                                                                 |
+| -------------------------- | --------------- | ---- | --------------------------------------------------------------------------- |
+| `pgstream.pipeline.phase`  | ObservableGauge | 1    | Reports `1` for the active pipeline phase and `0` for the others (`phase=snapshot\|replication`) |
+
+**Attributes:**
+
+- `phase`: Phase this data point refers to (`snapshot` or `replication`)
+
+**Usage:** Distinguish whether a running process is performing the initial snapshot or streaming logical replication, without scraping logs. Both `phase="snapshot"` and `phase="replication"` series are reported on every collection, with `1` marking the active phase and `0` the inactive one, so queries like `sum by (phase)` stay unambiguous across transitions. Nothing is reported until the first phase transition. The gauge flips to `replication` when logical replication starts. The same value is also exposed via the health server `GET /status` endpoint when health checks are enabled.
+
 ### WAL Event Processing
 
 | Metric                               | Type      | Unit | Description                                    |
@@ -125,6 +137,18 @@ All metrics follow the `pgstream.*` naming convention and include relevant attri
 - `query`: The actual SQL query (for non-transaction operations)
 
 **Usage:** Monitor database performance and identify slow queries.
+
+#### Writer Metrics
+
+| Metric                                    | Type              | Unit    | Description                                                                                          |
+| ----------------------------------------- | ----------------- | ------- | -------------------------------------------------------------------------------------------------- |
+| `pgstream.postgres.writer.dropped_queries` | ObservableCounter | queries | Number of queries silently dropped due to non-internal (DATALOSS) failures in drop-and-continue mode |
+
+**Attributes:**
+
+- `writer_type`: The postgres writer that dropped the query (one of "postgres_batch_writer", "postgres_bulk_ingest_writer")
+
+**Usage:** Alert on any non-zero value: each drop means a failing change was skipped and the checkpoint advanced past it, so the target replica may have diverged from the source. Enable `strict_mode` (`PGSTREAM_POSTGRES_WRITER_STRICT_MODE`) to make such failures stop the pipeline instead of being dropped.
 
 ### Search Operations
 
@@ -194,6 +218,32 @@ PGSTREAM_METRICS_COLLECTION_INTERVAL=60s
 PGSTREAM_TRACES_ENDPOINT="http://localhost:4317"
 PGSTREAM_TRACES_SAMPLE_RATIO=0.5
 ```
+
+### Prometheus Scraping (Pull-based)
+
+If you'd rather scrape metrics directly than deploy an OTel collector, enable the Prometheus exporter. It's served from the existing [health endpoint](configuration.md#instrumentation) server, so no separate port or process is needed:
+
+```yaml
+instrumentation:
+  health:
+    enabled: true
+    address: "0.0.0.0:9910" # defaults to localhost:9910
+  metrics:
+    prometheus:
+      enabled: true
+      endpoint: "/metrics" # defaults to /metrics
+```
+
+Or using environment variables:
+
+```sh
+PGSTREAM_HEALTH_CHECK_ENABLED=true
+PGSTREAM_HEALTH_CHECK_ADDRESS="0.0.0.0:9910"
+PGSTREAM_METRICS_PROMETHEUS_ENABLED=true
+PGSTREAM_METRICS_PROMETHEUS_ENDPOINT="/metrics"
+```
+
+This works standalone — `metrics.endpoint` is not required, so you get pgstream's metrics (including the [Go runtime metrics](#go-runtime-metrics)) without an OTLP collector in the loop. It can also be combined with `metrics.endpoint` to export to both a Prometheus scraper and an OTLP collector at the same time.
 
 ## Monitoring Dashboards
 

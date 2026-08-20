@@ -8,11 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"text/template"
 
-	"github.com/Masterminds/sprig/v3"
-	greenmasktoolkit "github.com/eminano/greenmask/pkg/toolkit"
 	"github.com/xataio/pgstream/internal/json"
+	"github.com/xataio/pgstream/pkg/transformers/internal/template"
 )
 
 const (
@@ -43,8 +41,6 @@ var (
 
 type JSONTransformer struct {
 	operations []*jsonOperation
-	jsonVal    *jsonValue
-	buf        *bytes.Buffer
 }
 
 func NewJSONTransformer(params ParameterValues) (*JSONTransformer, error) {
@@ -56,10 +52,7 @@ func NewJSONTransformer(params ParameterValues) (*JSONTransformer, error) {
 	// prepare the template objects for operations that has template values
 	for idx, o := range operations {
 		if o.valueTemplate != "" {
-			tmpl, err := template.New(fmt.Sprintf("op[%d] %s %s", idx, o.operation, o.path)).
-				Funcs(greenmasktoolkit.FuncMap()).
-				Funcs(sprig.FuncMap()).
-				Parse(o.valueTemplate)
+			tmpl, err := template.New(fmt.Sprintf("op[%d] %s %s", idx, o.operation, o.path), o.valueTemplate)
 			if err != nil {
 				return nil, fmt.Errorf("json_transformer: error parsing template op[%d] with path \"%s\": %w", idx, o.path, err)
 			}
@@ -69,8 +62,6 @@ func NewJSONTransformer(params ParameterValues) (*JSONTransformer, error) {
 
 	return &JSONTransformer{
 		operations: operations,
-		buf:        bytes.NewBuffer(nil),
-		jsonVal:    &jsonValue{},
 	}, nil
 }
 
@@ -88,13 +79,17 @@ func (jt *JSONTransformer) Transform(_ context.Context, value Value) (any, error
 			return nil, fmt.Errorf("json_transformer: error marshalling value to JSON: %w", err)
 		}
 	}
+	// the value and buffer are local to the call so that the transformer can
+	// be used concurrently
+	jsonVal := &jsonValue{}
 	// set dynamic values for the jsonValue instance, to be used in templates
-	jt.jsonVal.setDynamicValues(value.DynamicValues)
+	jsonVal.setDynamicValues(value.DynamicValues)
+	buf := bytes.NewBuffer(nil)
 
 	res := slices.Clone(toTransform)
 	for idx, op := range jt.operations {
-		jt.jsonVal.setValue(res, op.path)
-		if !jt.jsonVal.exists {
+		jsonVal.setValue(res, op.path)
+		if !jsonVal.exists {
 			if op.skipNotExist {
 				continue
 			}
@@ -103,7 +98,7 @@ func (jt *JSONTransformer) Transform(_ context.Context, value Value) (any, error
 			}
 		}
 		// apply each operation in the order they were provided
-		res, err = op.apply(res, jt.jsonVal, jt.buf)
+		res, err = op.apply(res, jsonVal, buf)
 		if err != nil {
 			return nil, fmt.Errorf("cannot apply \"%s\" operation[%d] with path %s: %w", op.operation, idx, op.path, err)
 		}
@@ -128,6 +123,10 @@ func (jt *JSONTransformer) IsDynamic() bool {
 	return true
 }
 
+func (jt *JSONTransformer) Uniqueness() Uniqueness {
+	return UniquenessNotGuaranteed
+}
+
 func (jt *JSONTransformer) Close() error {
 	return nil
 }
@@ -136,6 +135,7 @@ func JSONTransformerDefinition() *Definition {
 	return &Definition{
 		SupportedTypes: jsonCompatibleTypes,
 		Parameters:     jsonParams,
+		Uniqueness:     UniquenessNotGuaranteed,
 	}
 }
 

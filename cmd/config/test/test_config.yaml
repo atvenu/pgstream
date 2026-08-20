@@ -6,6 +6,7 @@ source:
       mode: full # options are full, schema or data
       tables: ["test", "test_schema.Test", "another_schema.*"] # tables to snapshot, can be a list of table names or a pattern
       excluded_tables: ["test_schema.Test"] # tables to exclude from the snapshot
+      schema_only_tables: ["schema_only_test", "schema_only_schema.*"] # tables for which only the schema is snapshotted, no data
       recorder:
         repeatable_snapshots: true # whether to repeat snapshots that have already been taken
         postgres_url: "postgresql://user:password@localhost:5432/mytargetdatabase" # URL of the database where the snapshot status is recorded
@@ -26,6 +27,13 @@ source:
           no_owner: true # whether to remove ownership commands from the dump
           no_privileges: true # whether to remove privileges commands from the dump (grant/revoke)
           excluded_security_labels: ["anon"] # list of providers whose security labels will be excluded from the snapshot. Wildcard supported.
+          refresh_materialized_views: true # whether to refresh materialized views after the table data has been restored
+          index_constraint_session_settings:
+            - maintenance_work_mem=4GB
+            - max_parallel_maintenance_workers=4
+            - synchronous_commit=off
+            - statement_timeout=0
+            - lock_timeout=0
       disable_progress_tracking: true # whether to disable progress tracking for the snapshot
     replication: # when mode is replication or snapshot_and_replication
       replication_slot: "pgstream_mydatabase_slot"
@@ -58,6 +66,7 @@ source:
 target:
   postgres:
     url: "postgresql://user:password@localhost:5432/mytargetdatabase"
+    max_connections: 60 # maximum number of connections in the writer pool to the target database
     batch:
       timeout: 1000 # batch timeout in milliseconds
       size: 100 # number of messages in a batch
@@ -80,11 +89,13 @@ target:
         initial_interval: 1000 # initial interval in milliseconds
         max_interval: 60000 # maximum interval in milliseconds
     ignore_ddl: true # whether to ignore DDL events on the target database
+    strict_mode: true # whether to stop on non-internal query failures instead of dropping them
   kafka:
     servers: ["localhost:9092"]
     topic:
       name: "mytopic" # name of the Kafka topic
       partitions: 1 # number of partitions for the topic
+      partition_key: "table" # message key strategy for DML events, one of schema, table or primary_key
       replication_factor: 1 # replication factor for the topic
       auto_create: true # whether to automatically create the topic if it doesn't exist
     tls:
@@ -140,6 +151,9 @@ modifiers:
      - "excluded_test"
      - "excluded_schema.test"
      - "another_excluded_schema.*"
+    schema_only_tables: # list of tables for which DDL events are allowed but data events are skipped. Tables should be schema qualified. If no schema is provided, the public schema will be assumed. Wildcards "*" are supported.
+     - "schema_only_test"
+     - "schema_only_schema.*"
   transformations:
     infer_from_security_labels: false
     dump_inferred_rules: false
@@ -153,6 +167,12 @@ modifiers:
             dynamic_parameters:
               gender:
                 column: sex
+
+logging:
+  level: info # log level for the application. One of trace, debug, info, warn, error, fatal, panic.
+  format:
+    type: console # log output format. One of console or json.
+    no_color: true # disable ANSI color codes in console log output. Only valid when type is console.
 
 instrumentation:
   metrics:

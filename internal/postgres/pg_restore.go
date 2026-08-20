@@ -9,14 +9,27 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
-	pgRestoreCmd = "pg_restore"
-	psqlCmd      = "psql"
-	postgres     = "postgres"
+	pgRestoreCmd          = "pg_restore"
+	psqlCmd               = "psql"
+	postgres              = "postgres"
+	maxStatementLen       = 500
+	maxRestoreOutputBytes = 4096
+)
+
+var (
+	// passwordLiteral matches the quoted secret in a role statement that carries
+	// one: CREATE/ALTER ROLE and CREATE/ALTER USER all spell it `PASSWORD '...'`
+	passwordLiteral = regexp.MustCompile(`(?i)PASSWORD\s+'(?:[^']|'')*'`)
+	// copyRowContext matches the row payload psql appends when a COPY fails
+	copyRowContext = regexp.MustCompile(`(?i)(CONTEXT:\s+COPY\s+[^,]+,\s+line\s+\d+):\s+".*"`)
 )
 
 type PGRestoreOptions struct {
@@ -32,6 +45,8 @@ type PGRestoreOptions struct {
 	Format string
 	// Options to pass to pg_restore
 	Options []string
+	// SessionSettings are name=value settings passed to PostgreSQL through PGOPTIONS.
+	SessionSettings []string
 }
 
 func (opts PGRestoreOptions) toArgs() []string {
@@ -57,7 +72,18 @@ func (opts PGRestoreOptions) toArgs() []string {
 }
 
 func (opts PGRestoreOptions) toPSQLArgs() []string {
-	return []string{opts.ConnectionString}
+	return []string{"--echo-errors", opts.ConnectionString}
+}
+
+func (opts PGRestoreOptions) toPGOptions(existing string) string {
+	options := make([]string, 0, len(opts.SessionSettings)+1)
+	if existing != "" {
+		options = append(options, existing)
+	}
+	for _, setting := range opts.SessionSettings {
+		options = append(options, "-c "+setting)
+	}
+	return strings.Join(options, " ")
 }
 
 // Func RunPGRestore runs pg_restore command with the given options and returns
@@ -68,16 +94,19 @@ func RunPGRestore(ctx context.Context, opts PGRestoreOptions, dump []byte) (stri
 	// does not include it so that pg_restore can create it.
 	if opts.Create {
 		var err error
-		opts.ConnectionString, err = removeDatabaseFromConnectionString(opts.ConnectionString)
+		opts.ConnectionString, err = RemoveDatabaseFromConnectionString(opts.ConnectionString)
 		if err != nil {
 			return "", err
 		}
 	}
 	switch opts.Format {
 	case "c":
-		cmd = exec.Command(pgRestoreCmd, opts.toArgs()...) //nolint:gosec
+		cmd = exec.CommandContext(ctx, pgRestoreCmd, opts.toArgs()...) //nolint:gosec
 	default:
-		cmd = exec.Command(psqlCmd, opts.toPSQLArgs()...) //nolint:gosec
+		cmd = exec.CommandContext(ctx, psqlCmd, opts.toPSQLArgs()...) //nolint:gosec
+	}
+	if len(opts.SessionSettings) > 0 {
+		cmd.Env = append(cmd.Environ(), "PGOPTIONS="+opts.toPGOptions(os.Getenv("PGOPTIONS")))
 	}
 
 	stdin, err := cmd.StdinPipe()
@@ -107,12 +136,36 @@ func buildRestoreError(out []byte, execErr error) error {
 		return fmt.Errorf("error restoring dump: %w", parseErr)
 	}
 	if execErr != nil {
-		return fmt.Errorf("error restoring dump: %w", execErr)
+		if tail := tailOutput(out, maxRestoreOutputBytes); tail != "" {
+			return fmt.Errorf("error restoring dump: %w: output: %s", execErr, tail)
+		}
+		return fmt.Errorf("error restoring dump: %w: no output captured", execErr)
 	}
 	return nil
 }
 
-func removeDatabaseFromConnectionString(url string) (string, error) {
+// redactSecrets removes credential material from restore output before it is
+// carried in an error.
+func redactSecrets(s string) string {
+	s = passwordLiteral.ReplaceAllString(s, "PASSWORD '[REDACTED]'")
+	return copyRowContext.ReplaceAllString(s, "$1: [REDACTED ROW]")
+}
+
+// tailOutput returns the last maxBytes of out, trimmed, prefixed with an
+// ellipsis when truncated, and with credential material redacted.
+func tailOutput(out []byte, maxBytes int) string {
+	trimmed := bytes.TrimSpace(out)
+	if len(trimmed) == 0 {
+		return ""
+	}
+	redacted := redactSecrets(string(trimmed))
+	if len(redacted) <= maxBytes {
+		return redacted
+	}
+	return "..." + redacted[len(redacted)-maxBytes:]
+}
+
+func RemoveDatabaseFromConnectionString(url string) (string, error) {
 	dbName, err := extractDatabase(url)
 	if err != nil {
 		return "", err
@@ -132,9 +185,23 @@ func parsePgRestoreOutputErrs(out []byte) error {
 	errs := &PGRestoreErrors{}
 	scanner := bufio.NewScanner(bytes.NewReader(out))
 	var currentErr error
+	inStatement := false
 	for scanner.Scan() {
 		line := scanner.Text()
 		switch {
+		case inStatement:
+			// continuation of a multi-line statement echo: consume until the
+			// terminating semicolon so echoed SQL text (which can contain
+			// "ERROR" or other keywords) is never parsed as new records
+			inStatement = !endsStatement(line)
+		case isStatementLine(line):
+			if currentErr != nil {
+				if isOwnershipError(currentErr) && isCommentStatement(line) {
+					currentErr = &ErrCommentOwnership{Details: currentErr.Error()}
+				}
+				currentErr = fmt.Errorf("%w: %s", currentErr, truncateStatement(redactSecrets(line)))
+			}
+			inStatement = !endsStatement(line)
 		case isErrorLine(line):
 			// Save any pending error before processing new one
 			if currentErr != nil {
@@ -159,17 +226,65 @@ func parsePgRestoreOutputErrs(out []byte) error {
 	return errs
 }
 
-// isDetailLine checks if a line contains detail information
+// isDetailLine checks if a line starts a detail record
 func isDetailLine(line string) bool {
-	return strings.Contains(line, "DETAIL:")
+	return strings.HasPrefix(strings.TrimSpace(line), "DETAIL:")
 }
 
-// isErrorLine checks if a line contains an error indicator
+var statementPrefixes = []string{"STATEMENT:", "Command was:"}
+
+func stripStatementPrefix(line string) (string, bool) {
+	trimmed := strings.TrimSpace(line)
+	for _, prefix := range statementPrefixes {
+		if strings.HasPrefix(trimmed, prefix) {
+			return strings.TrimSpace(strings.TrimPrefix(trimmed, prefix)), true
+		}
+	}
+	return "", false
+}
+
+func isStatementLine(line string) bool {
+	_, ok := stripStatementPrefix(line)
+	return ok
+}
+
+func isCommentStatement(line string) bool {
+	stmt, ok := stripStatementPrefix(line)
+	return ok && strings.HasPrefix(stmt, "COMMENT ON ")
+}
+
+func endsStatement(line string) bool {
+	return strings.HasSuffix(strings.TrimSpace(line), ";")
+}
+
+func isOwnershipError(err error) bool {
+	return strings.Contains(err.Error(), "must be owner of")
+}
+
+func truncateStatement(line string) string {
+	if len(line) <= maxStatementLen {
+		return line
+	}
+	truncated := line[:maxStatementLen]
+	// don't leave a partial multibyte rune at the cut point
+	for len(truncated) > 0 {
+		if r, size := utf8.DecodeLastRuneInString(truncated); r != utf8.RuneError || size > 1 {
+			break
+		}
+		truncated = truncated[:len(truncated)-1]
+	}
+	return truncated + "..."
+}
+
+// isErrorLine checks if a line starts an error record. Anchored on line
+// prefixes rather than substring matches so that echoed SQL containing
+// keywords like "ERROR" is not mistaken for a new error.
 func isErrorLine(line string) bool {
+	trimmed := strings.TrimSpace(line)
 	switch {
-	case strings.Contains(line, "pg_restore: error:"),
-		strings.Contains(line, "ERROR"),
-		strings.Contains(line, "psql: error:"):
+	case strings.HasPrefix(trimmed, "ERROR"),
+		strings.HasPrefix(trimmed, "pg_restore: error:"),
+		strings.HasPrefix(trimmed, "psql: error:"):
 		return true
 	default:
 		return false
@@ -180,6 +295,7 @@ func isErrorLine(line string) bool {
 func parseErrorLine(line string) error {
 	switch {
 	case strings.Contains(line, "already exists"),
+		strings.Contains(line, "already a partition"),
 		strings.Contains(line, "multiple primary keys for table"):
 		return &ErrRelationAlreadyExists{Details: line}
 	case strings.Contains(line, "cannot drop schema public because other objects depend on it"):
@@ -235,11 +351,13 @@ func (e *PGRestoreErrors) addError(err error) {
 	var errConstraintViolation *ErrConstraintViolation
 	var errPermissionDenied *ErrPermissionDenied
 	var errDoesNotExist *ErrRelationDoesNotExist
+	var errCommentOwnership *ErrCommentOwnership
 	switch {
 	case errors.As(err, &errAlreadyExists),
 		errors.As(err, &errConstraintViolation),
 		errors.As(err, &errPermissionDenied),
-		errors.As(err, &errDoesNotExist):
+		errors.As(err, &errDoesNotExist),
+		errors.As(err, &errCommentOwnership):
 		e.ignoredErrs = append(e.ignoredErrs, err)
 	default:
 		e.criticalErrs = append(e.criticalErrs, err)

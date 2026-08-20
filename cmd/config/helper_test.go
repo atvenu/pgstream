@@ -42,6 +42,7 @@ func validateTestStreamConfig(t *testing.T, streamConfig *stream.Config) {
 					ReplicationSlotName: "pgstream_mydatabase_slot",
 					IncludeTables:       []string{"test", "test_schema.test", "another_schema.*"},
 					ExcludeTables:       []string{"excluded_test", "excluded_schema.test", "another_excluded_schema.*"},
+					SchemaOnlyTables:    []string{"schema_only_test", "schema_only_schema.*"},
 					PluginArguments: pgreplication.PluginArguments{
 						IncludeXIDs: true,
 					},
@@ -56,8 +57,9 @@ func validateTestStreamConfig(t *testing.T, streamConfig *stream.Config) {
 				},
 				Snapshot: &builder.SnapshotListenerConfig{
 					Adapter: adapter.SnapshotConfig{
-						Tables:         []string{"test", "test_schema.Test", "another_schema.*"},
-						ExcludedTables: []string{"test_schema.Test"},
+						Tables:           []string{"test", "test_schema.Test", "another_schema.*"},
+						ExcludedTables:   []string{"test_schema.Test"},
+						SchemaOnlyTables: []string{"schema_only_test", "schema_only_schema.*"},
 					},
 					Data: &pgsnapshotgenerator.Config{
 						URL:             "postgresql://user:password@localhost:5432/mydatabase",
@@ -69,17 +71,25 @@ func validateTestStreamConfig(t *testing.T, streamConfig *stream.Config) {
 					},
 					Schema: &builder.SchemaSnapshotConfig{
 						DumpRestore: &pgdumprestore.Config{
-							SourcePGURL:            "postgresql://user:password@localhost:5432/mydatabase",
-							TargetPGURL:            "postgresql://user:password@localhost:5432/mytargetdatabase",
-							CleanTargetDB:          true,
-							CreateTargetDB:         true,
-							IncludeGlobalDBObjects: true,
-							RolesSnapshotMode:      "disabled",
-							Role:                   "test-role",
-							NoOwner:                true,
-							NoPrivileges:           true,
-							DumpDebugFile:          "pg_dump.sql",
-							ExcludedSecurityLabels: []string{"anon"},
+							SourcePGURL:              "postgresql://user:password@localhost:5432/mydatabase",
+							TargetPGURL:              "postgresql://user:password@localhost:5432/mytargetdatabase",
+							CleanTargetDB:            true,
+							CreateTargetDB:           true,
+							IncludeGlobalDBObjects:   true,
+							RolesSnapshotMode:        "disabled",
+							Role:                     "test-role",
+							NoOwner:                  true,
+							NoPrivileges:             true,
+							DumpDebugFile:            "pg_dump.sql",
+							ExcludedSecurityLabels:   []string{"anon"},
+							RefreshMaterializedViews: true,
+							IndexConstraintSessionSettings: []string{
+								"maintenance_work_mem=4GB",
+								"max_parallel_maintenance_workers=4",
+								"synchronous_commit=off",
+								"statement_timeout=0",
+								"lock_timeout=0",
+							},
 						},
 					},
 					Recorder: &builder.SnapshotRecorderConfig{
@@ -122,13 +132,15 @@ func validateTestStreamConfig(t *testing.T, streamConfig *stream.Config) {
 		Processor: stream.ProcessorConfig{
 			Postgres: &stream.PostgresProcessorConfig{
 				BatchWriter: postgres.Config{
-					URL: "postgresql://user:password@localhost:5432/mytargetdatabase",
+					URL:            "postgresql://user:password@localhost:5432/mytargetdatabase",
+					MaxConnections: 60,
 					BatchConfig: batch.Config{
 						MaxBatchSize:     100,
 						BatchTimeout:     time.Second,
 						MaxBatchBytes:    1572864,
 						MaxQueueBytes:    204800,
 						IgnoreSendErrors: true,
+						SendConcurrency:  8,
 						AutoTune: batch.AutoTuneConfig{
 							Enabled:              true,
 							MinBatchBytes:        10,
@@ -147,7 +159,8 @@ func validateTestStreamConfig(t *testing.T, streamConfig *stream.Config) {
 							MaxInterval:     60 * time.Second,
 						},
 					},
-					IgnoreDDL: true,
+					IgnoreDDL:  true,
+					StrictMode: true,
 				},
 			},
 			Kafka: &stream.KafkaProcessorConfig{
@@ -174,6 +187,7 @@ func validateTestStreamConfig(t *testing.T, streamConfig *stream.Config) {
 						MaxQueueBytes:    204800,
 						IgnoreSendErrors: true,
 					},
+					PartitionKey: kafkaprocessor.PartitionKeyTable,
 				},
 			},
 			Search: &stream.SearchProcessorConfig{
@@ -223,6 +237,7 @@ func validateTestStreamConfig(t *testing.T, streamConfig *stream.Config) {
 				InferFromSecurityLabels: false,
 				DumpInferredRules:       false,
 				ValidationMode:          "relaxed",
+				OnError:                 "null",
 				TransformerRules: []transformer.TableRules{
 					{
 						Schema:         "public",
@@ -242,8 +257,9 @@ func validateTestStreamConfig(t *testing.T, streamConfig *stream.Config) {
 				},
 			},
 			Filter: &filter.Config{
-				IncludeTables: []string{"test", "test_schema.test", "another_schema.*"},
-				ExcludeTables: []string{"excluded_test", "excluded_schema.test", "another_excluded_schema.*"},
+				IncludeTables:    []string{"test", "test_schema.test", "another_schema.*"},
+				ExcludeTables:    []string{"excluded_test", "excluded_schema.test", "another_excluded_schema.*"},
+				SchemaOnlyTables: []string{"schema_only_test", "schema_only_schema.*"},
 			},
 		},
 	}

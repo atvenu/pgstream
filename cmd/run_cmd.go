@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/xataio/pgstream/cmd/config"
 	"github.com/xataio/pgstream/internal/log/zerolog"
+	"github.com/xataio/pgstream/internal/phase"
 	"github.com/xataio/pgstream/pkg/stream"
 )
 
@@ -30,6 +31,7 @@ var runCmd = &cobra.Command{
 
 var (
 	initFlag             = false
+	upgradeFlag          = false
 	errUnsupportedSource = errors.New("unsupported source")
 	errUnsupportedTarget = errors.New("unsupported target")
 )
@@ -40,10 +42,9 @@ const (
 )
 
 func run(ctx context.Context) error {
-	logger := zerolog.NewLogger(&zerolog.Config{
-		LogLevel: viper.GetString("PGSTREAM_LOG_LEVEL"),
-	})
+	logger := zerolog.NewLogger(loggerConfigFromViper())
 	zerolog.SetGlobalLogger(logger)
+	watchLogLevelReloads(ctx, logger)
 
 	if isSnapshotMode() {
 		return fmt.Errorf("cannot use the 'run' command in snapshot-only mode; please use the 'snapshot' command instead")
@@ -60,7 +61,26 @@ func run(ctx context.Context) error {
 	}
 	defer provider.Close()
 
-	return stream.Run(ctx, zerolog.NewStdLogger(logger), streamConfig, initFlag, provider.NewInstrumentation("run"))
+	// --upgrade implies --init
+	if upgradeFlag {
+		initFlag = true
+	}
+
+	var opts []stream.InitOption
+	if upgradeFlag {
+		opts = append(opts, stream.WithUpgrade())
+	}
+
+	stdLogger := zerolog.NewStdLogger(logger)
+	phaseTracker := phase.NewTracker()
+	opts = append(opts, stream.WithPhaseTracker(phaseTracker))
+	stopHealth, err := startHealthServer(ctx, stdLogger, streamConfig.SourcePostgresURL(), phaseTracker)
+	if err != nil {
+		return err
+	}
+	defer stopHealth()
+
+	return stream.Run(ctx, stdLogger, streamConfig, initFlag, provider.NewInstrumentation("run"), opts...)
 }
 
 func runFlagBinding(cmd *cobra.Command, args []string) error {
@@ -93,10 +113,15 @@ func initialSnapshotFlagBinding(cmd *cobra.Command) {
 		viper.BindPFlag("source.postgres.snapshot.tables", cmd.Flags().Lookup("snapshot-tables"))
 		if len(viper.GetStringSlice("source.postgres.snapshot.tables")) > 0 {
 			viper.Set("source.postgres.mode", "snapshot_and_replication")
-			viper.Set("source.postgres.snapshot.mode", "full")
-			viper.Set("source.postgres.snapshot.schema.mode", "schemalog")
-			if cmd.Flags().Lookup("target").Value.String() == postgres {
-				viper.Set("source.postgres.snapshot.schema.mode", "pgdump_pgrestore")
+			dataOnly, _ := cmd.Flags().GetBool("data-only")
+			if dataOnly {
+				viper.Set("source.postgres.snapshot.mode", "data")
+			} else {
+				viper.Set("source.postgres.snapshot.mode", "full")
+				viper.Set("source.postgres.snapshot.schema.mode", "schemalog")
+				if cmd.Flags().Lookup("target").Value.String() == postgres {
+					viper.Set("source.postgres.snapshot.schema.mode", "pgdump_pgrestore")
+				}
 			}
 		}
 

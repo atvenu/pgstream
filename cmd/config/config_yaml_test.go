@@ -24,6 +24,68 @@ func TestYAMLConfig_toStreamConfig(t *testing.T) {
 	validateTestStreamConfig(t, streamConfig)
 }
 
+func TestYAMLConfig_parsePostgresProcessorConfig_CopyWorkers(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		bulkIngest          *BulkIngestConfig
+		wantSendConcurrency int
+	}{
+		{
+			name:                "bulk ingest disabled - send concurrency untouched",
+			bulkIngest:          &BulkIngestConfig{Enabled: false, CopyWorkers: 4},
+			wantSendConcurrency: 0,
+		},
+		{
+			name:                "bulk ingest enabled, copy_workers unset - defaults to 8",
+			bulkIngest:          &BulkIngestConfig{Enabled: true},
+			wantSendConcurrency: 8,
+		},
+		{
+			name:                "bulk ingest enabled, copy_workers overridden",
+			bulkIngest:          &BulkIngestConfig{Enabled: true, CopyWorkers: 16},
+			wantSendConcurrency: 16,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			c := &YAMLConfig{
+				Target: TargetConfig{
+					Postgres: &PostgresTargetConfig{
+						URL:        "postgresql://user:password@localhost:5432/mytargetdatabase",
+						BulkIngest: tc.bulkIngest,
+					},
+				},
+			}
+
+			cfg := c.parsePostgresProcessorConfig()
+			require.NotNil(t, cfg)
+			require.Equal(t, tc.wantSendConcurrency, cfg.BatchWriter.BatchConfig.SendConcurrency)
+		})
+	}
+}
+
+func TestYAMLConfig_LoggingConfig(t *testing.T) {
+	require.NoError(t, LoadFile("test/test_config.yaml"))
+
+	var config YAMLConfig
+	err := viper.Unmarshal(&config)
+	require.NoError(t, err)
+
+	require.NotNil(t, config.Logging)
+	require.Equal(t, &LoggingConfig{
+		Level: "info",
+		Format: LoggingFormatConfig{
+			Type:    "console",
+			NoColor: true,
+		},
+	}, config.Logging)
+}
+
 func TestYAMLConfig_toStreamConfig_ErrorCases(t *testing.T) {
 	t.Parallel()
 
@@ -58,6 +120,22 @@ func TestYAMLConfig_toStreamConfig_ErrorCases(t *testing.T) {
 			},
 
 			wantErr: errUnsupportedSnapshotMode,
+		},
+		{
+			name: "err - schema-only tables with data snapshot mode",
+			config: YAMLConfig{
+				Source: SourceConfig{
+					Postgres: &PostgresConfig{
+						Mode: snapshotMode,
+						Snapshot: &SnapshotConfig{
+							Mode:             dataSnapshotMode,
+							SchemaOnlyTables: []string{"public.audit_log"},
+						},
+					},
+				},
+			},
+
+			wantErr: errSchemaOnlyTablesSnapshotMode,
 		},
 		{
 			name: "err - invalid snapshot recorder config",

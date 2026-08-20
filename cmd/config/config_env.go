@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/viper"
+	"github.com/xataio/pgstream/internal/health"
 	"github.com/xataio/pgstream/pkg/backoff"
 	"github.com/xataio/pgstream/pkg/kafka"
 	"github.com/xataio/pgstream/pkg/otel"
@@ -35,6 +36,9 @@ func init() {
 	viper.BindEnv("PGSTREAM_TRACES_ENDPOINT")
 	viper.BindEnv("PGSTREAM_TRACES_SAMPLE_RATIO")
 
+	viper.BindEnv("PGSTREAM_HEALTH_CHECK_ENABLED")
+	viper.BindEnv("PGSTREAM_HEALTH_CHECK_ADDRESS")
+
 	viper.BindEnv("PGSTREAM_POSTGRES_LISTENER_URL")
 	viper.BindEnv("PGSTREAM_POSTGRES_LISTENER_EXP_BACKOFF_INITIAL_INTERVAL")
 	viper.BindEnv("PGSTREAM_POSTGRES_LISTENER_EXP_BACKOFF_MAX_INTERVAL")
@@ -50,6 +54,7 @@ func init() {
 	viper.BindEnv("PGSTREAM_POSTGRES_SNAPSHOT_TABLE_WORKERS")
 	viper.BindEnv("PGSTREAM_POSTGRES_SNAPSHOT_TABLES")
 	viper.BindEnv("PGSTREAM_POSTGRES_SNAPSHOT_EXCLUDED_TABLES")
+	viper.BindEnv("PGSTREAM_POSTGRES_SNAPSHOT_SCHEMA_ONLY_TABLES")
 	viper.BindEnv("PGSTREAM_POSTGRES_SNAPSHOT_WORKERS")
 	viper.BindEnv("PGSTREAM_POSTGRES_SNAPSHOT_MAX_CONNECTIONS")
 	viper.BindEnv("PGSTREAM_POSTGRES_SNAPSHOT_STORE_URL")
@@ -64,9 +69,14 @@ func init() {
 	viper.BindEnv("PGSTREAM_POSTGRES_SNAPSHOT_NO_OWNER")
 	viper.BindEnv("PGSTREAM_POSTGRES_SNAPSHOT_NO_PRIVILEGES")
 	viper.BindEnv("PGSTREAM_POSTGRES_SNAPSHOT_EXCLUDED_SECURITY_LABELS")
+	viper.BindEnv("PGSTREAM_POSTGRES_SNAPSHOT_REFRESH_MATERIALIZED_VIEWS")
+	viper.BindEnv("PGSTREAM_POSTGRES_SNAPSHOT_INDEX_CONSTRAINT_SESSION_SETTINGS")
+	viper.BindEnv("PGSTREAM_POSTGRES_SNAPSHOT_INCLUDE_OBJECT_TYPES")
+	viper.BindEnv("PGSTREAM_POSTGRES_SNAPSHOT_EXCLUDE_OBJECT_TYPES")
 	viper.BindEnv("PGSTREAM_POSTGRES_SNAPSHOT_DISABLE_PROGRESS_TRACKING")
 
 	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_TARGET_URL")
+	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_MAX_CONNECTIONS")
 	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_BATCH_TIMEOUT")
 	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_BATCH_BYTES")
 	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_BATCH_SIZE")
@@ -79,6 +89,7 @@ func init() {
 	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_DISABLE_TRIGGERS")
 	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_ON_CONFLICT_ACTION")
 	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_BULK_INGEST_ENABLED")
+	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_BULK_INGEST_COPY_WORKERS")
 	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_EXP_BACKOFF_INITIAL_INTERVAL")
 	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_EXP_BACKOFF_MAX_INTERVAL")
 	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_EXP_BACKOFF_MAX_RETRIES")
@@ -86,6 +97,9 @@ func init() {
 	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_BACKOFF_MAX_RETRIES")
 	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_DISABLE_RETRIES")
 	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_IGNORE_DDL")
+	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_STRICT_MODE")
+	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_INCLUDE_DDL_OBJECT_TYPES")
+	viper.BindEnv("PGSTREAM_POSTGRES_WRITER_EXCLUDE_DDL_OBJECT_TYPES")
 
 	viper.BindEnv("PGSTREAM_KAFKA_READER_SERVERS")
 	viper.BindEnv("PGSTREAM_KAFKA_WRITER_SERVERS")
@@ -99,6 +113,7 @@ func init() {
 	viper.BindEnv("PGSTREAM_KAFKA_COMMIT_BACKOFF_MAX_RETRIES")
 	viper.BindEnv("PGSTREAM_KAFKA_COMMIT_DISABLE_RETRIES")
 	viper.BindEnv("PGSTREAM_KAFKA_TOPIC_PARTITIONS")
+	viper.BindEnv("PGSTREAM_KAFKA_TOPIC_PARTITION_KEY")
 	viper.BindEnv("PGSTREAM_KAFKA_TOPIC_REPLICATION_FACTOR")
 	viper.BindEnv("PGSTREAM_KAFKA_TOPIC_AUTO_CREATE")
 	viper.BindEnv("PGSTREAM_KAFKA_WRITER_BATCH_TIMEOUT")
@@ -109,6 +124,11 @@ func init() {
 
 	viper.BindEnv("PGSTREAM_OPENSEARCH_STORE_URL")
 	viper.BindEnv("PGSTREAM_ELASTICSEARCH_STORE_URL")
+	viper.BindEnv("PGSTREAM_SEARCH_TLS_ENABLED")
+	viper.BindEnv("PGSTREAM_SEARCH_TLS_CA_CERT_FILE")
+	viper.BindEnv("PGSTREAM_SEARCH_TLS_CLIENT_CERT_FILE")
+	viper.BindEnv("PGSTREAM_SEARCH_TLS_CLIENT_KEY_FILE")
+	viper.BindEnv("PGSTREAM_SEARCH_TLS_INSECURE_SKIP_VERIFY")
 	viper.BindEnv("PGSTREAM_SEARCH_INDEXER_BATCH_SIZE")
 	viper.BindEnv("PGSTREAM_SEARCH_INDEXER_BATCH_TIMEOUT")
 	viper.BindEnv("PGSTREAM_SEARCH_INDEXER_MAX_QUEUE_BYTES")
@@ -128,14 +148,25 @@ func init() {
 	viper.BindEnv("PGSTREAM_WEBHOOK_NOTIFIER_MAX_QUEUE_BYTES")
 	viper.BindEnv("PGSTREAM_WEBHOOK_NOTIFIER_WORKER_COUNT")
 	viper.BindEnv("PGSTREAM_WEBHOOK_NOTIFIER_CLIENT_TIMEOUT")
+	viper.BindEnv("PGSTREAM_WEBHOOK_NOTIFIER_EXP_BACKOFF_INITIAL_INTERVAL")
+	viper.BindEnv("PGSTREAM_WEBHOOK_NOTIFIER_EXP_BACKOFF_MAX_INTERVAL")
+	viper.BindEnv("PGSTREAM_WEBHOOK_NOTIFIER_EXP_BACKOFF_MAX_RETRIES")
+	viper.BindEnv("PGSTREAM_WEBHOOK_NOTIFIER_BACKOFF_INTERVAL")
+	viper.BindEnv("PGSTREAM_WEBHOOK_NOTIFIER_BACKOFF_MAX_RETRIES")
+	viper.BindEnv("PGSTREAM_WEBHOOK_NOTIFIER_DISABLE_RETRIES")
+	viper.BindEnv("PGSTREAM_WEBHOOK_NOTIFIER_STRICT_MODE")
 	viper.BindEnv("PGSTREAM_WEBHOOK_SUBSCRIPTION_SERVER_ADDRESS")
 	viper.BindEnv("PGSTREAM_WEBHOOK_SUBSCRIPTION_SERVER_READ_TIMEOUT")
 	viper.BindEnv("PGSTREAM_WEBHOOK_SUBSCRIPTION_SERVER_WRITE_TIMEOUT")
+
+	viper.BindEnv("PGSTREAM_STDOUT_WRITER_ENABLED")
 
 	viper.BindEnv("PGSTREAM_INJECTOR_STORE_POSTGRES_URL")
 	viper.BindEnv("PGSTREAM_TRANSFORMER_RULES_FILE")
 	viper.BindEnv("PGSTREAM_FILTER_INCLUDE_TABLES")
 	viper.BindEnv("PGSTREAM_FILTER_EXCLUDE_TABLES")
+	viper.BindEnv("PGSTREAM_FILTER_SCHEMA_ONLY_TABLES")
+	viper.BindEnv("PGSTREAM_PROCESSOR_SANITIZE_STRIP_NULL_CHAR_BYTES")
 
 	viper.BindEnv("PGSTREAM_KAFKA_TLS_ENABLED")
 	viper.BindEnv("PGSTREAM_KAFKA_TLS_CA_CERT_FILE")
@@ -143,15 +174,31 @@ func init() {
 	viper.BindEnv("PGSTREAM_KAFKA_TLS_CLIENT_KEY_FILE")
 }
 
+func envToHealthConfig() *health.Config {
+	return &health.Config{
+		Enabled: viper.GetBool("PGSTREAM_HEALTH_CHECK_ENABLED"),
+		Address: viper.GetString("PGSTREAM_HEALTH_CHECK_ADDRESS"),
+	}
+}
+
 func envToOtelConfig() (*otel.Config, error) {
 	cfg := &otel.Config{}
 
 	metricsEndpoint := viper.GetString("PGSTREAM_METRICS_ENDPOINT")
-	if metricsEndpoint != "" {
-		cfg.Metrics = &otel.MetricsConfig{
-			Endpoint:           metricsEndpoint,
-			CollectionInterval: viper.GetDuration("PGSTREAM_METRICS_COLLECTION_INTERVAL"),
+	prometheusEnabled := viper.GetBool("PGSTREAM_METRICS_PROMETHEUS_ENABLED")
+	if metricsEndpoint != "" || prometheusEnabled {
+		metricsCfg := &otel.MetricsConfig{}
+		if metricsEndpoint != "" {
+			metricsCfg.Endpoint = metricsEndpoint
+			metricsCfg.CollectionInterval = viper.GetDuration("PGSTREAM_METRICS_COLLECTION_INTERVAL")
 		}
+		if prometheusEnabled {
+			metricsCfg.Prometheus = &otel.PrometheusConfig{
+				Enabled:  prometheusEnabled,
+				Endpoint: viper.GetString("PGSTREAM_METRICS_PROMETHEUS_ENDPOINT"),
+			}
+		}
+		cfg.Metrics = metricsCfg
 	}
 
 	tracesEndpoint := viper.GetString("PGSTREAM_TRACES_ENDPOINT")
@@ -213,20 +260,27 @@ func parsePostgresListenerConfig() (*stream.PostgresListenerConfig, error) {
 			PostgresURL:         pgURL,
 			ReplicationSlotName: viper.GetString("PGSTREAM_POSTGRES_REPLICATION_SLOT_NAME"),
 			PluginArguments: pgreplication.PluginArguments{
-				IncludeXIDs: viper.GetBool("PGSTREAM_POSTGRES_REPLICATION_PLUGIN_INCLUDE_XIDS"),
+				IncludeXIDs:  viper.GetBool("PGSTREAM_POSTGRES_REPLICATION_PLUGIN_INCLUDE_XIDS"),
+				AddTables:    viper.GetString("PGSTREAM_POSTGRES_REPLICATION_PLUGIN_ADD_TABLES"),
+				FilterTables: viper.GetString("PGSTREAM_POSTGRES_REPLICATION_PLUGIN_FILTER_TABLES"),
 			},
 		},
 		RetryPolicy: parseBackoffConfig("PGSTREAM_POSTGRES_LISTENER"),
 	}
 
+	// if there's a filter config, apply it to the replication config so that
+	// "no tuple identifier" warnings are suppressed for tables whose data
+	// events are filtered out anyway
 	if filterConfig := parseFilterConfig(); filterConfig != nil {
 		cfg.Replication.ExcludeTables = filterConfig.ExcludeTables
 		cfg.Replication.IncludeTables = filterConfig.IncludeTables
+		cfg.Replication.SchemaOnlyTables = filterConfig.SchemaOnlyTables
 	}
 
 	snapshotTables := viper.GetStringSlice("PGSTREAM_POSTGRES_SNAPSHOT_TABLES")
 	excludedTables := viper.GetStringSlice("PGSTREAM_POSTGRES_SNAPSHOT_EXCLUDED_TABLES")
-	if len(snapshotTables) > 0 || len(excludedTables) > 0 {
+	schemaOnlyTables := viper.GetStringSlice("PGSTREAM_POSTGRES_SNAPSHOT_SCHEMA_ONLY_TABLES")
+	if len(snapshotTables) > 0 || len(excludedTables) > 0 || len(schemaOnlyTables) > 0 {
 		var err error
 		cfg.Snapshot, err = parseSnapshotConfig(pgURL)
 		if err != nil {
@@ -248,6 +302,10 @@ func parseSnapshotConfig(pgURL string) (*snapshotbuilder.SnapshotListenerConfig,
 		return nil, errUnsupportedSnapshotMode
 	}
 
+	if snapshotMode == dataSnapshotMode && len(viper.GetStringSlice("PGSTREAM_POSTGRES_SNAPSHOT_SCHEMA_ONLY_TABLES")) > 0 {
+		return nil, errSchemaOnlyTablesSnapshotMode
+	}
+
 	var schemaSnapshotCfg *snapshotbuilder.SchemaSnapshotConfig
 	if snapshotMode == fullSnapshotMode || snapshotMode == schemaSnapshotMode {
 		var err error
@@ -262,9 +320,13 @@ func parseSnapshotConfig(pgURL string) (*snapshotbuilder.SnapshotListenerConfig,
 
 	var dataSnapshotCfg *pgsnapshotgenerator.Config
 	if snapshotMode == fullSnapshotMode || snapshotMode == dataSnapshotMode {
+		batchBytes, err := getByteSize("PGSTREAM_POSTGRES_SNAPSHOT_BATCH_BYTES")
+		if err != nil {
+			return nil, err
+		}
 		dataSnapshotCfg = &pgsnapshotgenerator.Config{
 			URL:             pgURL,
-			BatchBytes:      viper.GetUint64("PGSTREAM_POSTGRES_SNAPSHOT_BATCH_BYTES"),
+			BatchBytes:      uint64(batchBytes),
 			SchemaWorkers:   viper.GetUint("PGSTREAM_POSTGRES_SNAPSHOT_SCHEMA_WORKERS"),
 			TableWorkers:    viper.GetUint("PGSTREAM_POSTGRES_SNAPSHOT_TABLE_WORKERS"),
 			SnapshotWorkers: viper.GetUint("PGSTREAM_POSTGRES_SNAPSHOT_WORKERS"),
@@ -276,8 +338,9 @@ func parseSnapshotConfig(pgURL string) (*snapshotbuilder.SnapshotListenerConfig,
 		Data:   dataSnapshotCfg,
 		Schema: schemaSnapshotCfg,
 		Adapter: adapter.SnapshotConfig{
-			Tables:         viper.GetStringSlice("PGSTREAM_POSTGRES_SNAPSHOT_TABLES"),
-			ExcludedTables: viper.GetStringSlice("PGSTREAM_POSTGRES_SNAPSHOT_EXCLUDED_TABLES"),
+			Tables:           viper.GetStringSlice("PGSTREAM_POSTGRES_SNAPSHOT_TABLES"),
+			ExcludedTables:   viper.GetStringSlice("PGSTREAM_POSTGRES_SNAPSHOT_EXCLUDED_TABLES"),
+			SchemaOnlyTables: viper.GetStringSlice("PGSTREAM_POSTGRES_SNAPSHOT_SCHEMA_ONLY_TABLES"),
 		},
 		DisableProgressTracking: viper.GetBool("PGSTREAM_POSTGRES_SNAPSHOT_DISABLE_PROGRESS_TRACKING"),
 	}
@@ -302,17 +365,21 @@ func parseSchemaSnapshotConfig(pgurl string) (*snapshotbuilder.SchemaSnapshotCon
 	}
 	return &snapshotbuilder.SchemaSnapshotConfig{
 		DumpRestore: &pgdumprestore.Config{
-			SourcePGURL:            pgurl,
-			TargetPGURL:            pgTargetURL,
-			CleanTargetDB:          viper.GetBool("PGSTREAM_POSTGRES_SNAPSHOT_CLEAN_TARGET_DB"),
-			CreateTargetDB:         viper.GetBool("PGSTREAM_POSTGRES_SNAPSHOT_CREATE_TARGET_DB"),
-			IncludeGlobalDBObjects: viper.GetBool("PGSTREAM_POSTGRES_SNAPSHOT_INCLUDE_GLOBAL_DB_OBJECTS"),
-			Role:                   viper.GetString("PGSTREAM_POSTGRES_SNAPSHOT_ROLE"),
-			RolesSnapshotMode:      rolesSnapshotConfig,
-			DumpDebugFile:          viper.GetString("PGSTREAM_POSTGRES_SNAPSHOT_SCHEMA_DUMP_FILE"),
-			NoOwner:                viper.GetBool("PGSTREAM_POSTGRES_SNAPSHOT_NO_OWNER"),
-			NoPrivileges:           viper.GetBool("PGSTREAM_POSTGRES_SNAPSHOT_NO_PRIVILEGES"),
-			ExcludedSecurityLabels: viper.GetStringSlice("PGSTREAM_POSTGRES_SNAPSHOT_EXCLUDED_SECURITY_LABELS"),
+			SourcePGURL:                    pgurl,
+			TargetPGURL:                    pgTargetURL,
+			CleanTargetDB:                  viper.GetBool("PGSTREAM_POSTGRES_SNAPSHOT_CLEAN_TARGET_DB"),
+			CreateTargetDB:                 viper.GetBool("PGSTREAM_POSTGRES_SNAPSHOT_CREATE_TARGET_DB"),
+			IncludeGlobalDBObjects:         viper.GetBool("PGSTREAM_POSTGRES_SNAPSHOT_INCLUDE_GLOBAL_DB_OBJECTS"),
+			Role:                           viper.GetString("PGSTREAM_POSTGRES_SNAPSHOT_ROLE"),
+			RolesSnapshotMode:              rolesSnapshotConfig,
+			DumpDebugFile:                  viper.GetString("PGSTREAM_POSTGRES_SNAPSHOT_SCHEMA_DUMP_FILE"),
+			NoOwner:                        viper.GetBool("PGSTREAM_POSTGRES_SNAPSHOT_NO_OWNER"),
+			NoPrivileges:                   viper.GetBool("PGSTREAM_POSTGRES_SNAPSHOT_NO_PRIVILEGES"),
+			ExcludedSecurityLabels:         viper.GetStringSlice("PGSTREAM_POSTGRES_SNAPSHOT_EXCLUDED_SECURITY_LABELS"),
+			RefreshMaterializedViews:       viper.GetBool("PGSTREAM_POSTGRES_SNAPSHOT_REFRESH_MATERIALIZED_VIEWS"),
+			IndexConstraintSessionSettings: viper.GetStringSlice("PGSTREAM_POSTGRES_SNAPSHOT_INDEX_CONSTRAINT_SESSION_SETTINGS"),
+			IncludeObjectTypes:             viper.GetStringSlice("PGSTREAM_POSTGRES_SNAPSHOT_INCLUDE_OBJECT_TYPES"),
+			ExcludeObjectTypes:             viper.GetStringSlice("PGSTREAM_POSTGRES_SNAPSHOT_EXCLUDE_OBJECT_TYPES"),
 		},
 	}, nil
 }
@@ -358,30 +425,72 @@ func parseProcessorConfig() (stream.ProcessorConfig, error) {
 	if err != nil {
 		return stream.ProcessorConfig{}, err
 	}
+
+	kafkaCfg, err := parseKafkaProcessorConfig()
+	if err != nil {
+		return stream.ProcessorConfig{}, err
+	}
+
+	searchCfg, err := parseSearchProcessorConfig()
+	if err != nil {
+		return stream.ProcessorConfig{}, err
+	}
+
+	webhookCfg, err := parseWebhookProcessorConfig()
+	if err != nil {
+		return stream.ProcessorConfig{}, err
+	}
+
+	postgresCfg, err := parsePostgresProcessorConfig()
+	if err != nil {
+		return stream.ProcessorConfig{}, err
+	}
+
 	return stream.ProcessorConfig{
-		Kafka:       parseKafkaProcessorConfig(),
-		Search:      parseSearchProcessorConfig(),
-		Webhook:     parseWebhookProcessorConfig(),
-		Postgres:    parsePostgresProcessorConfig(),
+		Kafka:       kafkaCfg,
+		Search:      searchCfg,
+		Webhook:     webhookCfg,
+		Postgres:    postgresCfg,
+		Stdout:      parseStdoutProcessorConfig(),
 		Injector:    parseInjectorConfig(),
 		Transformer: transformerCfg,
 		Filter:      parseFilterConfig(),
+		Sanitize:    parseSanitizeConfig(),
 	}, nil
 }
 
-func parseKafkaProcessorConfig() *stream.KafkaProcessorConfig {
+func parseStdoutProcessorConfig() *stream.StdoutProcessorConfig {
+	if !viper.GetBool("PGSTREAM_STDOUT_WRITER_ENABLED") {
+		return nil
+	}
+	return &stream.StdoutProcessorConfig{}
+}
+
+func parseKafkaProcessorConfig() (*stream.KafkaProcessorConfig, error) {
 	kafkaTopic := viper.GetString("PGSTREAM_KAFKA_TOPIC_NAME")
 	kafkaServers := viper.GetStringSlice("PGSTREAM_KAFKA_WRITER_SERVERS")
 	if len(kafkaServers) == 0 || kafkaTopic == "" {
-		return nil
+		return nil, nil
 	}
 
-	return &stream.KafkaProcessorConfig{
-		Writer: parseKafkaWriterConfig(kafkaServers, kafkaTopic),
+	writerCfg, err := parseKafkaWriterConfig(kafkaServers, kafkaTopic)
+	if err != nil {
+		return nil, err
 	}
+	return &stream.KafkaProcessorConfig{
+		Writer: writerCfg,
+	}, nil
 }
 
-func parseKafkaWriterConfig(kafkaServers []string, kafkaTopic string) *kafkaprocessor.Config {
+func parseKafkaWriterConfig(kafkaServers []string, kafkaTopic string) (*kafkaprocessor.Config, error) {
+	maxBatchBytes, err := getByteSize("PGSTREAM_KAFKA_WRITER_BATCH_BYTES")
+	if err != nil {
+		return nil, err
+	}
+	maxQueueBytes, err := getByteSize("PGSTREAM_KAFKA_WRITER_MAX_QUEUE_BYTES")
+	if err != nil {
+		return nil, err
+	}
 	return &kafkaprocessor.Config{
 		Kafka: kafka.ConnConfig{
 			Servers: kafkaServers,
@@ -395,28 +504,37 @@ func parseKafkaWriterConfig(kafkaServers []string, kafkaTopic string) *kafkaproc
 		},
 		Batch: batch.Config{
 			BatchTimeout:     viper.GetDuration("PGSTREAM_KAFKA_WRITER_BATCH_TIMEOUT"),
-			MaxBatchBytes:    viper.GetInt64("PGSTREAM_KAFKA_WRITER_BATCH_BYTES"),
+			MaxBatchBytes:    maxBatchBytes,
 			MaxBatchSize:     viper.GetInt64("PGSTREAM_KAFKA_WRITER_BATCH_SIZE"),
-			MaxQueueBytes:    viper.GetInt64("PGSTREAM_KAFKA_WRITER_MAX_QUEUE_BYTES"),
+			MaxQueueBytes:    maxQueueBytes,
 			IgnoreSendErrors: viper.GetBool("PGSTREAM_KAFKA_WRITER_BATCH_IGNORE_SEND_ERRORS"),
 		},
-	}
+		PartitionKey: kafkaprocessor.PartitionKey(viper.GetString("PGSTREAM_KAFKA_TOPIC_PARTITION_KEY")),
+	}, nil
 }
 
-func parseSearchProcessorConfig() *stream.SearchProcessorConfig {
+func parseSearchProcessorConfig() (*stream.SearchProcessorConfig, error) {
 	opensearchStore := viper.GetString("PGSTREAM_OPENSEARCH_STORE_URL")
 	elasticsearchStore := viper.GetString("PGSTREAM_ELASTICSEARCH_STORE_URL")
 	if opensearchStore == "" && elasticsearchStore == "" {
-		return nil
+		return nil, nil
 	}
 
+	maxQueueBytes, err := getByteSize("PGSTREAM_SEARCH_INDEXER_MAX_QUEUE_BYTES")
+	if err != nil {
+		return nil, err
+	}
+	maxBatchBytes, err := getByteSize("PGSTREAM_SEARCH_INDEXER_BATCH_BYTES")
+	if err != nil {
+		return nil, err
+	}
 	return &stream.SearchProcessorConfig{
 		Indexer: search.IndexerConfig{
 			Batch: batch.Config{
 				MaxBatchSize:     viper.GetInt64("PGSTREAM_SEARCH_INDEXER_BATCH_SIZE"),
 				BatchTimeout:     viper.GetDuration("PGSTREAM_SEARCH_INDEXER_BATCH_TIMEOUT"),
-				MaxQueueBytes:    viper.GetInt64("PGSTREAM_SEARCH_INDEXER_MAX_QUEUE_BYTES"),
-				MaxBatchBytes:    viper.GetInt64("PGSTREAM_SEARCH_INDEXER_BATCH_BYTES"),
+				MaxQueueBytes:    maxQueueBytes,
+				MaxBatchBytes:    maxBatchBytes,
 				IgnoreSendErrors: viper.GetBool("PGSTREAM_SEARCH_INDEXER_BATCH_IGNORE_SEND_ERRORS"),
 			},
 			HashDocIDs: viper.GetBool("PGSTREAM_SEARCH_INDEXER_HASH_DOC_IDS"),
@@ -424,19 +542,24 @@ func parseSearchProcessorConfig() *stream.SearchProcessorConfig {
 		Store: store.Config{
 			OpenSearchURL:    opensearchStore,
 			ElasticsearchURL: elasticsearchStore,
+			TLS:              parseSearchTLSConfig(),
 		},
 		Retrier: search.StoreRetryConfig{
 			Backoff: parseBackoffConfig("PGSTREAM_SEARCH_STORE"),
 		},
-	}
+	}, nil
 }
 
-func parseWebhookProcessorConfig() *stream.WebhookProcessorConfig {
+func parseWebhookProcessorConfig() (*stream.WebhookProcessorConfig, error) {
 	subscriptionStore := viper.GetString("PGSTREAM_WEBHOOK_SUBSCRIPTION_STORE_URL")
 	if subscriptionStore == "" {
-		return nil
+		return nil, nil
 	}
 
+	maxQueueBytes, err := getByteSize("PGSTREAM_WEBHOOK_NOTIFIER_MAX_QUEUE_BYTES")
+	if err != nil {
+		return nil, err
+	}
 	return &stream.WebhookProcessorConfig{
 		SubscriptionStore: stream.WebhookSubscriptionStoreConfig{
 			URL:                  subscriptionStore,
@@ -444,54 +567,78 @@ func parseWebhookProcessorConfig() *stream.WebhookProcessorConfig {
 			CacheRefreshInterval: viper.GetDuration("PGSTREAM_WEBHOOK_SUBSCRIPTION_STORE_CACHE_REFRESH_INTERVAL"),
 		},
 		Notifier: notifier.Config{
-			MaxQueueBytes:  viper.GetInt64("PGSTREAM_WEBHOOK_NOTIFIER_MAX_QUEUE_BYTES"),
+			MaxQueueBytes:  maxQueueBytes,
 			URLWorkerCount: viper.GetUint("PGSTREAM_WEBHOOK_NOTIFIER_WORKER_COUNT"),
 			ClientTimeout:  viper.GetDuration("PGSTREAM_WEBHOOK_NOTIFIER_CLIENT_TIMEOUT"),
+			Backoff:        parseBackoffConfig("PGSTREAM_WEBHOOK_NOTIFIER"),
+			StrictMode:     viper.GetBool("PGSTREAM_WEBHOOK_NOTIFIER_STRICT_MODE"),
 		},
 		SubscriptionServer: server.Config{
 			Address:      viper.GetString("PGSTREAM_WEBHOOK_SUBSCRIPTION_SERVER_ADDRESS"),
 			ReadTimeout:  viper.GetDuration("PGSTREAM_WEBHOOK_SUBSCRIPTION_SERVER_READ_TIMEOUT"),
 			WriteTimeout: viper.GetDuration("PGSTREAM_WEBHOOK_SUBSCRIPTION_SERVER_WRITE_TIMEOUT"),
 		},
-	}
+	}, nil
 }
 
-func parsePostgresProcessorConfig() *stream.PostgresProcessorConfig {
+func parsePostgresProcessorConfig() (*stream.PostgresProcessorConfig, error) {
 	targetPostgresURL := viper.GetString("PGSTREAM_POSTGRES_WRITER_TARGET_URL")
 	if targetPostgresURL == "" {
-		return nil
+		return nil, nil
+	}
+
+	maxBatchBytes, err := getByteSize("PGSTREAM_POSTGRES_WRITER_BATCH_BYTES")
+	if err != nil {
+		return nil, err
+	}
+	maxQueueBytes, err := getByteSize("PGSTREAM_POSTGRES_WRITER_MAX_QUEUE_BYTES")
+	if err != nil {
+		return nil, err
+	}
+	autoTuneMinBytes, err := getByteSize("PGSTREAM_POSTGRES_WRITER_BATCH_AUTO_TUNE_MIN_BYTES")
+	if err != nil {
+		return nil, err
+	}
+	autoTuneMaxBytes, err := getByteSize("PGSTREAM_POSTGRES_WRITER_BATCH_AUTO_TUNE_MAX_BYTES")
+	if err != nil {
+		return nil, err
 	}
 
 	bulkIngestEnabled := viper.GetBool("PGSTREAM_POSTGRES_WRITER_BULK_INGEST_ENABLED")
 	cfg := &stream.PostgresProcessorConfig{
 		BatchWriter: postgres.Config{
-			URL: targetPostgresURL,
+			URL:            targetPostgresURL,
+			MaxConnections: viper.GetUint("PGSTREAM_POSTGRES_WRITER_MAX_CONNECTIONS"),
 			BatchConfig: batch.Config{
 				BatchTimeout:     viper.GetDuration("PGSTREAM_POSTGRES_WRITER_BATCH_TIMEOUT"),
-				MaxBatchBytes:    viper.GetInt64("PGSTREAM_POSTGRES_WRITER_BATCH_BYTES"),
+				MaxBatchBytes:    maxBatchBytes,
 				MaxBatchSize:     viper.GetInt64("PGSTREAM_POSTGRES_WRITER_BATCH_SIZE"),
-				MaxQueueBytes:    viper.GetInt64("PGSTREAM_POSTGRES_WRITER_MAX_QUEUE_BYTES"),
+				MaxQueueBytes:    maxQueueBytes,
 				IgnoreSendErrors: viper.GetBool("PGSTREAM_POSTGRES_WRITER_BATCH_IGNORE_SEND_ERRORS"),
 				AutoTune: batch.AutoTuneConfig{
 					Enabled:              viper.GetBool("PGSTREAM_POSTGRES_WRITER_BATCH_AUTO_TUNE_ENABLE"),
-					MinBatchBytes:        viper.GetInt64("PGSTREAM_POSTGRES_WRITER_BATCH_AUTO_TUNE_MIN_BYTES"),
-					MaxBatchBytes:        viper.GetInt64("PGSTREAM_POSTGRES_WRITER_BATCH_AUTO_TUNE_MAX_BYTES"),
+					MinBatchBytes:        autoTuneMinBytes,
+					MaxBatchBytes:        autoTuneMaxBytes,
 					ConvergenceThreshold: viper.GetFloat64("PGSTREAM_POSTGRES_WRITER_BATCH_AUTO_TUNE_CONVERGENCE_THRESHOLD"),
 				},
 			},
-			DisableTriggers:   viper.GetBool("PGSTREAM_POSTGRES_WRITER_DISABLE_TRIGGERS"),
-			OnConflictAction:  viper.GetString("PGSTREAM_POSTGRES_WRITER_ON_CONFLICT_ACTION"),
-			BulkIngestEnabled: bulkIngestEnabled,
-			RetryPolicy:       parseBackoffConfig("PGSTREAM_POSTGRES_WRITER"),
-			IgnoreDDL:         viper.GetBool("PGSTREAM_POSTGRES_WRITER_IGNORE_DDL"),
+			DisableTriggers:       viper.GetBool("PGSTREAM_POSTGRES_WRITER_DISABLE_TRIGGERS"),
+			OnConflictAction:      viper.GetString("PGSTREAM_POSTGRES_WRITER_ON_CONFLICT_ACTION"),
+			BulkIngestEnabled:     bulkIngestEnabled,
+			RetryPolicy:           parseBackoffConfig("PGSTREAM_POSTGRES_WRITER"),
+			IgnoreDDL:             viper.GetBool("PGSTREAM_POSTGRES_WRITER_IGNORE_DDL"),
+			StrictMode:            viper.GetBool("PGSTREAM_POSTGRES_WRITER_STRICT_MODE"),
+			IncludeDDLObjectTypes: viper.GetStringSlice("PGSTREAM_POSTGRES_WRITER_INCLUDE_DDL_OBJECT_TYPES"),
+			ExcludeDDLObjectTypes: viper.GetStringSlice("PGSTREAM_POSTGRES_WRITER_EXCLUDE_DDL_OBJECT_TYPES"),
 		},
 	}
 
 	if bulkIngestEnabled {
+		cfg.BatchWriter.BatchConfig.SendConcurrency = viper.GetInt("PGSTREAM_POSTGRES_WRITER_BULK_INGEST_COPY_WORKERS")
 		applyPostgresBulkBatchDefaults(&cfg.BatchWriter.BatchConfig)
 	}
 
-	return cfg
+	return cfg, nil
 }
 
 func parseBackoffConfig(prefix string) backoff.Config {
@@ -505,13 +652,15 @@ func parseBackoffConfig(prefix string) backoff.Config {
 func parseExponentialBackoffConfig(prefix string) *backoff.ExponentialConfig {
 	initialInterval := viper.GetDuration(fmt.Sprintf("%s_EXP_BACKOFF_INITIAL_INTERVAL", prefix))
 	maxInterval := viper.GetDuration(fmt.Sprintf("%s_EXP_BACKOFF_MAX_INTERVAL", prefix))
+	maxElapsedTime := viper.GetDuration(fmt.Sprintf("%s_EXP_BACKOFF_MAX_ELAPSED_TIME", prefix))
 	maxRetries := viper.GetUint(fmt.Sprintf("%s_EXP_BACKOFF_MAX_RETRIES", prefix))
-	if initialInterval == 0 && maxInterval == 0 && maxRetries == 0 {
+	if initialInterval == 0 && maxInterval == 0 && maxElapsedTime == 0 && maxRetries == 0 {
 		return nil
 	}
 	return &backoff.ExponentialConfig{
 		InitialInterval: initialInterval,
 		MaxInterval:     maxInterval,
+		MaxElapsedTime:  maxElapsedTime,
 		MaxRetries:      maxRetries,
 	}
 }
@@ -546,13 +695,24 @@ func parseTransformerConfig() (*transformer.Config, error) {
 func parseFilterConfig() *filter.Config {
 	includeTables := viper.GetStringSlice("PGSTREAM_FILTER_INCLUDE_TABLES")
 	excludeTables := viper.GetStringSlice("PGSTREAM_FILTER_EXCLUDE_TABLES")
-	if len(includeTables) == 0 && len(excludeTables) == 0 {
+	schemaOnlyTables := viper.GetStringSlice("PGSTREAM_FILTER_SCHEMA_ONLY_TABLES")
+	if len(includeTables) == 0 && len(excludeTables) == 0 && len(schemaOnlyTables) == 0 {
 		return nil
 	}
 
 	return &filter.Config{
-		IncludeTables: includeTables,
-		ExcludeTables: excludeTables,
+		IncludeTables:    includeTables,
+		ExcludeTables:    excludeTables,
+		SchemaOnlyTables: schemaOnlyTables,
+	}
+}
+
+func parseSanitizeConfig() *stream.SanitizeConfig {
+	if !viper.GetBool("PGSTREAM_PROCESSOR_SANITIZE_STRIP_NULL_CHAR_BYTES") {
+		return nil
+	}
+	return &stream.SanitizeConfig{
+		StripNullCharBytes: true,
 	}
 }
 
@@ -563,4 +723,18 @@ func parseTLSConfig(prefix string) tls.Config {
 		ClientCertFile: viper.GetString(fmt.Sprintf("%s_TLS_CLIENT_CERT_FILE", prefix)),
 		ClientKeyFile:  viper.GetString(fmt.Sprintf("%s_TLS_CLIENT_KEY_FILE", prefix)),
 	}
+}
+
+// parseSearchTLSConfig reads the search store TLS settings from the
+// environment.
+func parseSearchTLSConfig() tls.Config {
+	cfg := tls.Config{
+		CaCertFile:         viper.GetString("PGSTREAM_SEARCH_TLS_CA_CERT_FILE"),
+		ClientCertFile:     viper.GetString("PGSTREAM_SEARCH_TLS_CLIENT_CERT_FILE"),
+		ClientKeyFile:      viper.GetString("PGSTREAM_SEARCH_TLS_CLIENT_KEY_FILE"),
+		InsecureSkipVerify: viper.GetBool("PGSTREAM_SEARCH_TLS_INSECURE_SKIP_VERIFY"),
+	}
+	cfg.Enabled = viper.GetBool("PGSTREAM_SEARCH_TLS_ENABLED") ||
+		cfg.CaCertFile != "" || cfg.ClientCertFile != "" || cfg.InsecureSkipVerify
+	return cfg
 }

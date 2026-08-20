@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 
 	pglib "github.com/xataio/pgstream/internal/postgres"
 	loglib "github.com/xataio/pgstream/pkg/log"
@@ -23,8 +24,9 @@ type Handler struct {
 	pgReplicationConnBuilder func() (pglib.ReplicationQuerier, error)
 	pgConnBuilder            func() (pglib.Querier, error)
 
-	excludedTables pglib.SchemaTableMap
-	includedTables pglib.SchemaTableMap
+	excludedTables   pglib.SchemaTableMap
+	includedTables   pglib.SchemaTableMap
+	schemaOnlyTables pglib.SchemaTableMap
 
 	lsnParser replication.LSNParser
 
@@ -41,13 +43,19 @@ type Config struct {
 	ExcludeTables []string
 	// List of qualified tables included for replication.
 	IncludeTables []string
+	// List of qualified tables whose data events are filtered out downstream
+	// (schema-only tables), for which replication errors should be ignored
+	// unless the table is explicitly listed in IncludeTables.
+	SchemaOnlyTables []string
 	// PluginArguments are arguments to be passed to the logical decoding plugin
 	// (wal2json).
 	PluginArguments PluginArguments
 }
 
 type PluginArguments struct {
-	IncludeXIDs bool
+	IncludeXIDs  bool
+	AddTables    string // wal2json add-tables option (e.g., "public.*")
+	FilterTables string // wal2json filter-tables option (e.g., "pipelines.*,private.*")
 }
 
 type Option func(h *Handler)
@@ -58,6 +66,10 @@ const (
 	logDBName      = "db_name"
 	logSystemID    = "system_id"
 )
+
+func escapeReplicationOptionValue(s string) string {
+	return strings.ReplaceAll(s, `'`, `''`)
+}
 
 var defaultPluginArguments = []string{
 	`"include-timestamp" '1'`,
@@ -82,6 +94,9 @@ func NewHandler(ctx context.Context, cfg Config, opts ...Option) (*Handler, erro
 	replicationSlotName := cfg.ReplicationSlotName
 	if replicationSlotName == "" {
 		replicationSlotName = pglib.DefaultReplicationSlotName(sysID.DBName)
+	}
+	if err := pglib.IsValidReplicationSlotName(replicationSlotName); err != nil {
+		return nil, err
 	}
 
 	connBuilder := func() (pglib.Querier, error) {
@@ -110,6 +125,12 @@ func NewHandler(ctx context.Context, cfg Config, opts ...Option) (*Handler, erro
 	if cfg.PluginArguments.IncludeXIDs {
 		h.pluginArguments = append(h.pluginArguments, `"include-xids" '1'`)
 	}
+	if cfg.PluginArguments.AddTables != "" {
+		h.pluginArguments = append(h.pluginArguments, fmt.Sprintf(`"add-tables" '%s'`, escapeReplicationOptionValue(cfg.PluginArguments.AddTables)))
+	}
+	if cfg.PluginArguments.FilterTables != "" {
+		h.pluginArguments = append(h.pluginArguments, fmt.Sprintf(`"filter-tables" '%s'`, escapeReplicationOptionValue(cfg.PluginArguments.FilterTables)))
+	}
 
 	if len(cfg.IncludeTables) > 0 {
 		h.includedTables, err = pglib.NewSchemaTableMap(cfg.IncludeTables)
@@ -119,6 +140,12 @@ func NewHandler(ctx context.Context, cfg Config, opts ...Option) (*Handler, erro
 	}
 	if len(cfg.ExcludeTables) > 0 {
 		h.excludedTables, err = pglib.NewSchemaTableMap(cfg.ExcludeTables)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if len(cfg.SchemaOnlyTables) > 0 {
+		h.schemaOnlyTables, err = pglib.NewSchemaTableMap(cfg.SchemaOnlyTables)
 		if err != nil {
 			return nil, err
 		}
@@ -368,10 +395,17 @@ func (h *Handler) isExcludedTableError(err error) bool {
 		if len(matches) == 4 {
 			schema := matches[2]
 			table := matches[3]
-			if len(h.excludedTables) > 0 {
-				if h.excludedTables.ContainsSchemaTable(schema, table) {
-					return true
-				}
+			// mirror the wal filter precedence for data events: exclude beats
+			// everything, an exact include entry beats a schema-only match,
+			// and a schema-only match beats a wildcard include
+			if h.excludedTables.ContainsSchemaTable(schema, table) {
+				return true
+			}
+			if h.includedTables.ContainsExactSchemaTable(schema, table) {
+				return false
+			}
+			if h.schemaOnlyTables.ContainsSchemaTable(schema, table) {
+				return true
 			}
 			if len(h.includedTables) > 0 {
 				if !h.includedTables.ContainsSchemaTable(schema, table) {

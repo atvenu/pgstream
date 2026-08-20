@@ -8,8 +8,6 @@
   <a href="https://pkg.go.dev/github.com/xataio/pgstream"><img src="https://pkg.go.dev/badge/github.com/xataio/pgstream.svg" alt="Go Reference"></a>&nbsp;
   <a href="https://github.com/xataio/pgstream/releases"><img src="https://img.shields.io/github/release/xataio/pgstream.svg?label=Release" alt="Release"></a> &nbsp;
   <a href="https://somsubhra.github.io/github-release-stats/?username=xataio&repository=pgstream&page=1&per_page=5"><img src="https://img.shields.io/github/downloads/xataio/pgstream/total" alt="Downloads"></a> &nbsp;
-  <a href="https://goreportcard.com/report/github.com/xataio/pgstream"><img src="https://goreportcard.com/badge/github.com/xataio/pgstream" alt="Go Report Card"></a> &nbsp;
-  <a href="https://xata.io/discord"><img src="https://img.shields.io/discord/996791218879086662?label=Discord&logo=discord" alt="Discord"></a> &nbsp;
   <a href="https://twitter.com/xata"><img src="https://img.shields.io/badge/@xata-6c47ff?label=Follow&logo=x" alt="X (formerly Twitter) Follow" /> </a>
   <a href="https://bsky.app/profile/xata.io"><img src="https://img.shields.io/badge/@xata-6c47ff?label=Follow&logo=bluesky" alt="Bluesky Follow" /> </a>
   <a href="https://www.youtube.com/@xataio"><img src="https://img.shields.io/badge/@xataio-6c47ff?label=Youtube&logo=youtube" alt="Youtube Subscribe" /> </a>
@@ -206,6 +204,7 @@ For more advanced usage, implementation details, and detailed configuration sett
    - [Environment Variables](docs/configuration.md#environment-variables)
    - [Examples](docs/examples/)
 3. [Snapshots](docs/snapshots.md)
+   - [Running from a read replica](docs/replicas.md)
 4. [Transformers](docs/transformers.md)
    - [Supported Transformers](docs/transformers.md#supported-transformers)
    - [Transformation Rules](docs/transformers.md#transformation-rules)
@@ -216,7 +215,8 @@ For more advanced usage, implementation details, and detailed configuration sett
    - [AWS](docs/aws.md)
    - [GCP CloudSQL](docs/gcp_cloudsql.md)
    - [Neon](docs/neon.md)
-8. [Glossary](docs/glossary.md)
+8. [Container image](docs/container_image.md)
+9. [Glossary](docs/glossary.md)
 
 ## Benchmarks
 
@@ -258,7 +258,7 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ## Support
 
-If you have any questions, encounter issues, or need assistance, open an issue in this repository our join our [Discord](https://xata.io/discord), and our community will be happy to help.
+If you have any questions, encounter issues, or need assistance, open an issue in this repository, and our community will be happy to help.
 
 <br>
 <p align="right">Made with 💜 by <a href="https://xata.io">Xata 🦋</a></p>

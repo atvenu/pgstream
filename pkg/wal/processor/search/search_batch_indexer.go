@@ -9,6 +9,7 @@ import (
 	"runtime/debug"
 
 	loglib "github.com/xataio/pgstream/pkg/log"
+	"github.com/xataio/pgstream/pkg/otel"
 	"github.com/xataio/pgstream/pkg/wal"
 	"github.com/xataio/pgstream/pkg/wal/checkpointer"
 	"github.com/xataio/pgstream/pkg/wal/processor"
@@ -28,13 +29,18 @@ type BatchIndexer struct {
 
 	// checkpoint callback to mark what was safely stored
 	checkpoint checkpointer.Checkpoint
+
+	// dropped accumulates what ignore_send_errors has discarded, and is shared
+	// with the sender so the totals and metrics cover this indexer.
+	dropped         *batch.DroppedCounter
+	instrumentation *otel.Instrumentation
 }
 
 type Option func(*BatchIndexer)
 
 type batchSender interface {
 	SendMessage(context.Context, *batch.WALMessage[*msg]) error
-	Close()
+	Close() error
 }
 
 // NewBatchIndexer returns a processor of wal events that indexes data into the
@@ -58,12 +64,34 @@ func NewBatchIndexer(ctx context.Context, config IndexerConfig, store Store, lsn
 	indexer.adapter = newAdapter(store.GetMapper(), lsnParser, idHasher)
 
 	var err error
-	indexer.batchSender, err = batch.NewSender(ctx, &config.Batch, indexer.sendBatch, indexer.logger)
+	indexer.dropped = batch.NewDroppedCounter()
+	if config.Batch.IgnoreSendErrors {
+		indexer.logger.Warn(nil, "ignore_send_errors is enabled: batches that fail to send will be dropped and the run will continue", loglib.Fields{
+			"posture":     "at_risk",
+			"writer_type": searchIndexerType,
+		})
+	}
+	if err := indexer.dropped.RegisterMetrics(indexer.instrumentation, searchIndexerType); err != nil {
+		return nil, fmt.Errorf("initialising search batch indexer metrics: %w", err)
+	}
+
+	indexer.batchSender, err = batch.NewSender(ctx, &config.Batch, indexer.sendBatch, indexer.logger,
+		batch.WithDroppedCounter[*msg](indexer.dropped))
 	if err != nil {
 		return nil, err
 	}
 
 	return indexer, nil
+}
+
+const searchIndexerType = "search_batch_indexer"
+
+// WithInstrumentation exports the indexer's dropped-batch counters. The store is
+// instrumented separately; this covers what the batch sender discards.
+func WithInstrumentation(i *otel.Instrumentation) Option {
+	return func(indexer *BatchIndexer) {
+		indexer.instrumentation = i
+	}
 }
 
 func WithLogger(l loglib.Logger) Option {
@@ -94,10 +122,12 @@ func (i *BatchIndexer) ProcessWALEvent(ctx context.Context, event *wal.Event) (e
 		}
 	}()
 
-	i.logger.Trace("search batch indexer: received wal event", loglib.Fields{
-		"wal_data":            event.Data,
-		"wal_commit_position": event.CommitPosition,
-	})
+	if i.logger.IsTraceEnabled() {
+		i.logger.Trace("search batch indexer: received wal event", loglib.Fields{
+			"wal_data":            event.Data,
+			"wal_commit_position": event.CommitPosition,
+		})
+	}
 
 	msg, err := i.adapter.walEventToMsg(event)
 	if err != nil {
@@ -120,8 +150,9 @@ func (i *BatchIndexer) Name() string {
 }
 
 func (i *BatchIndexer) Close() error {
-	i.batchSender.Close()
-	return nil
+	err := i.batchSender.Close()
+	i.dropped.LogTotals(i.logger)
+	return err
 }
 
 func (i *BatchIndexer) sendBatch(ctx context.Context, batch *batch.Batch[*msg]) error {

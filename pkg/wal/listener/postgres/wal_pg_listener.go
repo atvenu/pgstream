@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/xataio/pgstream/internal/json"
+	"github.com/xataio/pgstream/internal/phase"
 	loglib "github.com/xataio/pgstream/pkg/log"
 	"github.com/xataio/pgstream/pkg/wal"
 	"github.com/xataio/pgstream/pkg/wal/replication"
@@ -20,6 +21,7 @@ type Listener struct {
 	logger             loglib.Logger
 	lsnParser          replication.LSNParser
 	snapshotGenerator  snapshotGenerator
+	phaseTracker       *phase.Tracker
 
 	// Function called for processing WAL events.
 	processEvent listenerProcessWalEvent
@@ -45,12 +47,14 @@ type listenerProcessWalEvent func(context.Context, *wal.Event) error
 
 type Option func(l *Listener)
 
+const pgstreamSchemaName = "pgstream"
+
 func New(handler replicationHandler, processEvent listenerProcessWalEvent, opts ...Option) *Listener {
 	l := &Listener{
 		logger:              loglib.NewNoopLogger(),
 		replicationHandler:  handler,
 		processEvent:        processEvent,
-		walDataDeserialiser: json.Unmarshal,
+		walDataDeserialiser: json.UnmarshalUseInt64,
 		lsnParser:           handler.GetLSNParser(),
 	}
 
@@ -75,6 +79,14 @@ func WithInitialSnapshot(sg snapshotGenerator) Option {
 	}
 }
 
+// WithPhaseTracker registers a tracker updated as the listener moves between
+// snapshot and replication phases.
+func WithPhaseTracker(t *phase.Tracker) Option {
+	return func(l *Listener) {
+		l.phaseTracker = t
+	}
+}
+
 // Listen starts the subscription process to listen for updates from PG.
 func (l *Listener) Listen(ctx context.Context) error {
 	if l.snapshotGenerator != nil {
@@ -82,11 +94,15 @@ func (l *Listener) Listen(ctx context.Context) error {
 			l.logger.Error(err, "pg snapshot and listen")
 			return err
 		}
+		// snapshotAndListen already entered the listen loop; only reached on
+		// clean return (context cancel) or if snapshot path returned early.
+		return nil
 	}
 
 	if err := l.replicationHandler.StartReplication(ctx); err != nil {
 		return fmt.Errorf("start replication: %w", err)
 	}
+	l.phaseTracker.Set(phase.Replication)
 
 	return l.listen(ctx)
 }
@@ -97,6 +113,8 @@ func (l *Listener) Close() error {
 }
 
 func (l *Listener) snapshotAndListen(ctx context.Context) error {
+	l.phaseTracker.Set(phase.Snapshot)
+
 	lsn, err := l.replicationHandler.GetCurrentLSN(ctx)
 	if err != nil {
 		return err
@@ -109,6 +127,7 @@ func (l *Listener) snapshotAndListen(ctx context.Context) error {
 	if err := l.replicationHandler.StartReplicationFromLSN(ctx, lsn); err != nil {
 		return fmt.Errorf("start replication from LSN %s: %w", l.lsnParser.ToString(lsn), err)
 	}
+	l.phaseTracker.Set(phase.Replication)
 
 	return l.listen(ctx)
 }
@@ -131,11 +150,13 @@ func (l *Listener) listen(ctx context.Context) error {
 				continue
 			}
 
-			l.logger.Trace("", loglib.Fields{
-				"wal_end":     l.lsnParser.ToString(msg.LSN),
-				"server_time": msg.ServerTime,
-				"wal_data":    msg.Data,
-			})
+			if l.logger.IsTraceEnabled() {
+				l.logger.Trace("", loglib.Fields{
+					"wal_end":     l.lsnParser.ToString(msg.LSN),
+					"server_time": msg.ServerTime,
+					"wal_data":    msg.Data,
+				})
+			}
 
 			if err := l.processWALEvent(ctx, msg); err != nil {
 				return err
@@ -157,8 +178,25 @@ func (l *Listener) processWALEvent(ctx context.Context, msg *replication.Message
 		if err := l.walDataDeserialiser(msg.Data, event.Data); err != nil {
 			return fmt.Errorf("error unmarshaling wal data: %w", err)
 		}
+		// Here rather than in the writer: this is the only place that knows the
+		// value came from wal2json, so one pass covers every downstream call
+		// site, and transformers then see the same []byte the snapshot path
+		// gives them instead of hex text.
+		decodeByteaColumns(event.Data)
 	}
 	event.CommitPosition = wal.CommitPosition(l.lsnParser.ToString(msg.LSN))
+	if isInternalPgstreamDML(event.Data) {
+		l.logger.Trace("skipping pgstream internal DML event", loglib.Fields{
+			"schema": event.Data.Schema,
+			"table":  event.Data.Table,
+			"action": event.Data.Action,
+		})
+		event.Data = nil
+	}
 
 	return l.processEvent(ctx, event)
+}
+
+func isInternalPgstreamDML(data *wal.Data) bool {
+	return data != nil && data.Schema == pgstreamSchemaName && !data.IsDDLEvent()
 }

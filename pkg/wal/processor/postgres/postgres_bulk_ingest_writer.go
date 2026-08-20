@@ -24,9 +24,17 @@ type BulkIngestWriter struct {
 
 	batchSenderMap     *synclib.Map[string, queryBatchSender]
 	batchSenderBuilder func(ctx context.Context, schema, table string) (queryBatchSender, error)
+	// copyBudget caps the total number of concurrent COPYs across all tables
+	// (and all their send drainers) so they never exhaust the target
+	// connection pool. It is sized from the resolved pool max-connections
+	// value, minus copyBudgetReserve.
+	copyBudget synclib.WeightedSemaphore
 }
 
 const bulkIngestWriter = "postgres_bulk_ingest_writer"
+
+// batch writer and retrier reset share this pool
+const copyBudgetReserve = 5
 
 var errUnexpectedCopiedRows = errors.New("number of rows copied doesn't match the source rows")
 
@@ -46,14 +54,22 @@ func NewBulkIngestWriter(ctx context.Context, config *Config, opts ...WriterOpti
 	biw := &BulkIngestWriter{
 		Writer:         w,
 		batchSenderMap: synclib.NewMap[string, queryBatchSender](),
+		copyBudget:     synclib.NewWeightedSemaphore(copyBudgetSize(w.maxConnections)),
 	}
 
 	biw.batchSenderBuilder = func(ctx context.Context, schema, table string) (queryBatchSender, error) {
 		logger := w.logger.WithFields(loglib.Fields{"schema": schema, "table": table})
-		return batch.NewSender(ctx, &config.BatchConfig, biw.sendBatch, logger)
+		// every per-table sender shares the writer's counter, so the drop
+		// totals and metrics cover the run rather than one table
+		return batch.NewSender(ctx, &config.BatchConfig, biw.sendBatch, logger,
+			batch.WithDroppedCounter[*query](w.dropped))
 	}
 
 	return biw, nil
+}
+
+func copyBudgetSize(maxConnections int32) int64 {
+	return max(1, int64(maxConnections)-copyBudgetReserve)
 }
 
 // ProcessWALEvent is called on every new message from the wal. It can be called
@@ -116,15 +132,10 @@ func (w *BulkIngestWriter) Close() error {
 	eg := errgroup.Group{}
 	for _, sender := range w.batchSenderMap.GetMap() {
 		eg.Go(func() error {
-			sender.Close()
-			return nil
+			return sender.Close()
 		})
 	}
-	if err := eg.Wait(); err != nil {
-		w.logger.Error(err, "closing batch senders")
-	}
-
-	return w.close()
+	return errors.Join(eg.Wait(), w.close())
 }
 
 func (w *BulkIngestWriter) getBatchSender(ctx context.Context, schema, table string) (queryBatchSender, error) {
@@ -152,6 +163,15 @@ func (w *BulkIngestWriter) sendBatch(ctx context.Context, batch *batch.Batch[*qu
 	}
 
 	w.logger.Trace("bulk writing batch", loglib.Fields{"batch_size": len(queries)})
+
+	// Cap the total number of concurrent COPYs across all tables and their send
+	// drainers so they never exhaust the target connection pool. This is the
+	// single choke point through which every table's COPY flows.
+	if err := w.copyBudget.Acquire(ctx, 1); err != nil {
+		return err
+	}
+	defer w.copyBudget.Release(1)
+
 	return w.copyFromInsertQueries(ctx, queries)
 }
 
@@ -168,12 +188,26 @@ func (w *BulkIngestWriter) copyFromInsertQueries(ctx context.Context, inserts []
 		rows = append(rows, q.args)
 	}
 
+	// Tables with extension types pgx has no binary codec for
+	// must round-trip through text-format COPY, otherwise
+	// the destination misreads the raw text bytes as the binary
+	// representation of the type.
+	// The dml adapter precomputes the needsTextCopy flag
+	// from the column type list when building the query.
+	copyFn := func(tx pglib.Tx) (int64, error) {
+		target := pglib.QuoteQualifiedIdentifier(query.schema, query.table)
+		if query.needsTextCopy {
+			return tx.CopyFromText(ctx, target, query.columnNames, rows)
+		}
+		return tx.CopyFrom(ctx, target, query.columnNames, rows)
+	}
+
 	err := w.pgConn.ExecInTx(ctx, func(tx pglib.Tx) error {
 		if err := w.setReplicationRoleToReplica(ctx, tx); err != nil {
 			return err
 		}
 
-		rowsCopied, err := tx.CopyFrom(ctx, pglib.QuoteQualifiedIdentifier(query.schema, query.table), query.columnNames, rows)
+		rowsCopied, err := copyFn(tx)
 		if err != nil {
 			return err
 		}

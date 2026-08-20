@@ -95,7 +95,7 @@ func (a *dmlAdapter) buildDeleteQuery(d *wal.Data) (*query, error) {
 }
 
 func (a *dmlAdapter) buildInsertQueries(d *wal.Data, schemaInfo schemaInfo) []*query {
-	names, values := a.filterRowColumns(d.Columns, schemaInfo)
+	names, types, values := a.filterRowColumnsWithTypes(d.Columns, schemaInfo)
 	// if there are no columns after filtering generated ones, no query to run
 	if len(names) == 0 {
 		return []*query{}
@@ -108,9 +108,10 @@ func (a *dmlAdapter) buildInsertQueries(d *wal.Data, schemaInfo schemaInfo) []*q
 
 	qs := []*query{
 		{
-			table:       d.Table,
-			schema:      d.Schema,
-			columnNames: names,
+			table:         d.Table,
+			schema:        d.Schema,
+			columnNames:   names,
+			needsTextCopy: needsTextCopyForColumns(names, types, schemaInfo.enumColumns),
 			sql: fmt.Sprintf("INSERT INTO %s(%s) OVERRIDING SYSTEM VALUE VALUES(%s)%s",
 				quotedTableName(d.Schema, d.Table), strings.Join(names, ", "),
 				strings.Join(placeholders, ", "),
@@ -127,7 +128,7 @@ func (a *dmlAdapter) buildInsertQueries(d *wal.Data, schemaInfo schemaInfo) []*q
 	// handle sequence columns that need to be updated after insert
 	for _, col := range d.Columns {
 		if seqName, ok := schemaInfo.sequenceColumns[pglib.QuoteIdentifier(col.Name)]; ok {
-			colValueFloat, ok := col.Value.(float64)
+			seqVal, ok := toInt64(col.Value)
 			if !ok {
 				a.logger.Warn(nil, "unexpected value type for sequence column, expected integer", loglib.Fields{
 					"column_name": col.Name, "column_type": col.Type, "column_value": col.Value,
@@ -138,7 +139,7 @@ func (a *dmlAdapter) buildInsertQueries(d *wal.Data, schemaInfo schemaInfo) []*q
 				table:  d.Table,
 				schema: d.Schema,
 				sql:    "SELECT setval($1::regclass, $2::bigint, true)",
-				args:   []any{seqName, int64(colValueFloat)},
+				args:   []any{seqName, seqVal},
 			})
 		}
 	}
@@ -147,7 +148,7 @@ func (a *dmlAdapter) buildInsertQueries(d *wal.Data, schemaInfo schemaInfo) []*q
 }
 
 func (a *dmlAdapter) buildUpdateQuery(d *wal.Data, schemaInfo schemaInfo) (*query, error) {
-	rowColumns, rowValues := a.filterRowColumns(d.Columns, schemaInfo)
+	rowColumns, _, rowValues := a.filterRowColumnsForAction(d.Columns, schemaInfo, true)
 	// if there are no columns after filtering generated ones, no query to run
 	if len(rowColumns) == 0 {
 		return &query{}, nil
@@ -269,28 +270,52 @@ func (a *dmlAdapter) extractPrimaryKeyColumnNames(colIDs []string, cols []wal.Co
 }
 
 func (a *dmlAdapter) filterRowColumns(cols []wal.Column, schemaInfo schemaInfo) ([]string, []any) {
-	// we need to make sure we only add the arguments for the
-	// relevant column names (this removes any generated columns/sequence row values)
+	names, _, vals := a.filterRowColumnsForAction(cols, schemaInfo, false)
+	return names, vals
+}
+
+// filterRowColumnsWithTypes is the variant used on the bulk-COPY path: it
+// also returns the postgres type name for each kept column so the writer
+// can decide between binary and text-format COPY.
+func (a *dmlAdapter) filterRowColumnsWithTypes(cols []wal.Column, schemaInfo schemaInfo) ([]string, []string, []any) {
+	return a.filterRowColumnsForAction(cols, schemaInfo, false)
+}
+
+// filterRowColumnsForAction drops generated columns, and — when forUpdate is
+// true — also drops GENERATED ALWAYS AS IDENTITY columns. INSERTs use
+// OVERRIDING SYSTEM VALUE so always-identity values are accepted, but no such
+// clause exists for UPDATE and Postgres rejects explicit values in SET.
+func (a *dmlAdapter) filterRowColumnsForAction(cols []wal.Column, schemaInfo schemaInfo, forUpdate bool) ([]string, []string, []any) {
 	rowValues := make([]any, 0, len(cols))
 	rowColumns := make([]string, 0, len(cols))
+	rowTypes := make([]string, 0, len(cols))
 	for _, c := range cols {
-		if _, found := schemaInfo.generatedColumns[pglib.QuoteIdentifier(c.Name)]; found {
+		quoted := pglib.QuoteIdentifier(c.Name)
+		if _, found := schemaInfo.generatedColumns[quoted]; found {
 			continue
 		}
-		rowColumns = append(rowColumns, pglib.QuoteIdentifier(c.Name))
+		if forUpdate {
+			if _, found := schemaInfo.alwaysIdentityColumns[quoted]; found {
+				continue
+			}
+		}
+		rowColumns = append(rowColumns, quoted)
+		rowTypes = append(rowTypes, c.Type)
 		val := c.Value
 
 		val = serializeJSONBValue(c.Type, val)
+		val = getTypedRangeValue(c.Type, val)
 
 		if a.forCopy {
-			val = a.updateValueForCopy(val, c.Type)
+			_, isEnum := schemaInfo.enumColumns[quoted]
+			val = a.updateValueForCopy(val, c.Type, isEnum)
 		}
 		rowValues = append(rowValues, val)
 	}
-	return rowColumns, rowValues
+	return rowColumns, rowTypes, rowValues
 }
 
-func (a *dmlAdapter) updateValueForCopy(value any, colType string) any {
+func (a *dmlAdapter) updateValueForCopy(value any, colType string, isEnum bool) any {
 	// For COPY, we might need to update the value for some data types,
 	// so that it will be able to be encoded into binary format correctly.
 	switch colType {
@@ -298,6 +323,11 @@ func (a *dmlAdapter) updateValueForCopy(value any, colType string) any {
 		return getInfinityValueForDateTime(value, colType)
 	case "tstzrange":
 		return getTypedTSTZRange(value)
+	case "tsvector":
+		if b, ok := value.([]byte); ok {
+			return string(b)
+		}
+		return value
 	}
 
 	// Handle array types
@@ -305,6 +335,13 @@ func (a *dmlAdapter) updateValueForCopy(value any, colType string) any {
 	// need to be converted to Go slices. The pgx COPY encoder expects proper Go types,
 	// not text representations.
 	if isArray(colType) {
+		// An array of a user-defined enum never reaches binary COPY: pgx has no
+		// codec for the element OID, so the batch is routed to text-format COPY,
+		// which writes the postgres array literal verbatim. Parsing it into a Go
+		// slice here would hand the text encoder a type it cannot render back.
+		if isEnum {
+			return value
+		}
 		// If the value is a string (PostgreSQL array literal like "{val1,val2}"),
 		// we need to parse it into a Go slice for binary COPY format
 		if strVal, ok := value.(string); ok {
@@ -377,6 +414,123 @@ func getTypedTSTZRange(value any) any {
 		LowerType: v.LowerType,
 		UpperType: v.UpperType,
 		Valid:     v.Valid,
+	}
+}
+
+func getTypedRangeValue(colType string, value any) any {
+	switch colType {
+	case "int4range":
+		return getTypedInt4Range(value)
+	case "int8range":
+		return getTypedInt8Range(value)
+	case "tstzrange":
+		return getTypedTSTZRange(value)
+	default:
+		return value
+	}
+}
+
+func getTypedInt4Range(value any) any {
+	v, ok := value.(pgtype.Range[any])
+	if !ok {
+		return value
+	}
+
+	lower, lowerOk := toInt64(v.Lower)
+	upper, upperOk := toInt64(v.Upper)
+
+	var typedLower, typedUpper int32
+	if lowerOk {
+		typedLower = int32(lower)
+	}
+	if upperOk {
+		typedUpper = int32(upper)
+	}
+
+	return pgtype.Range[int32]{
+		Lower:     typedLower,
+		Upper:     typedUpper,
+		LowerType: v.LowerType,
+		UpperType: v.UpperType,
+		Valid:     v.Valid,
+	}
+}
+
+func getTypedInt8Range(value any) any {
+	v, ok := value.(pgtype.Range[any])
+	if !ok {
+		return value
+	}
+
+	lower, lowerOk := toInt64(v.Lower)
+	upper, upperOk := toInt64(v.Upper)
+
+	var typedLower, typedUpper int64
+	if lowerOk {
+		typedLower = lower
+	}
+	if upperOk {
+		typedUpper = upper
+	}
+
+	return pgtype.Range[int64]{
+		Lower:     typedLower,
+		Upper:     typedUpper,
+		LowerType: v.LowerType,
+		UpperType: v.UpperType,
+		Valid:     v.Valid,
+	}
+}
+
+// textOnlyCopyTypes lists postgres type names whose binary wire format pgx
+// can't produce correctly, so bulk ingest must fall back to text-format
+// COPY for any batch that touches one of these columns.
+var textOnlyCopyTypes = map[string]struct{}{
+	"cube":  {}, // binary header: int32 dim+flags + N×float8 — pgx writes the text rep, server misreads it as a dimension count
+	"ltree": {}, // binary format: 1-byte version + path string — pgx writes the text rep, server reads byte 0 as the version number
+}
+
+func needsTextCopy(columnTypes []string) bool {
+	for _, t := range columnTypes {
+		if _, ok := textOnlyCopyTypes[t]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// needsTextCopyForColumns reports whether a batch covering the given columns
+// must fall back to text-format COPY instead of pgx's binary COPY. This is the
+// case when a column has a static text-only type (see textOnlyCopyTypes) or a
+// user-defined enum type, whose database-specific OID pgx has no binary codec
+// registered for. columnNames must be quoted to match the enumColumns set.
+func needsTextCopyForColumns(columnNames, columnTypes []string, enumColumns map[string]enumColumn) bool {
+	if needsTextCopy(columnTypes) {
+		return true
+	}
+	for _, name := range columnNames {
+		if _, ok := enumColumns[name]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// toInt64 converts a wal.Column.Value into an int64 if it represents an
+// integer. WAL data deserialised with UseInt64 produces int64, but snapshots
+// and tests may produce other integer types or float64.
+func toInt64(v any) (int64, bool) {
+	switch n := v.(type) {
+	case int64:
+		return n, true
+	case int:
+		return int64(n), true
+	case int32:
+		return int64(n), true
+	case float64:
+		return int64(n), true
+	default:
+		return 0, false
 	}
 }
 

@@ -7,6 +7,7 @@
         "string",
         "citext"
       ],
+      "uniqueness": "not_guaranteed",
       "parameters": [
         {
           "name": "replacement_domain",
@@ -32,11 +33,36 @@
       ]
     },
     {
+      "name": "encrypted_aes_siv",
+      "supported_types": [
+        "string",
+        "byte_array"
+      ],
+      "uniqueness": "preserved",
+      "parameters": [
+        {
+          "name": "key_hex",
+          "supported_type": "string",
+          "default": null,
+          "dynamic": false,
+          "required": true
+        },
+        {
+          "name": "associated_data",
+          "supported_type": "string",
+          "default": "",
+          "dynamic": false,
+          "required": false
+        }
+      ]
+    },
+    {
       "name": "greenmask_boolean",
       "supported_types": [
         "boolean",
         "byte_array"
       ],
+      "uniqueness": "lossy",
       "parameters": [
         {
           "name": "generator",
@@ -57,6 +83,7 @@
         "string",
         "byte_array"
       ],
+      "uniqueness": "lossy",
       "parameters": [
         {
           "name": "choices",
@@ -85,6 +112,7 @@
         "byte_array",
         "date"
       ],
+      "uniqueness": "not_guaranteed",
       "parameters": [
         {
           "name": "generator",
@@ -119,6 +147,7 @@
         "string",
         "byte_array"
       ],
+      "uniqueness": "lossy",
       "parameters": [
         {
           "name": "generator",
@@ -152,6 +181,7 @@
         "float64",
         "byte_array"
       ],
+      "uniqueness": "not_guaranteed",
       "parameters": [
         {
           "name": "generator",
@@ -202,6 +232,7 @@
         "float32",
         "float64"
       ],
+      "uniqueness": "not_guaranteed",
       "parameters": [
         {
           "name": "generator",
@@ -247,6 +278,7 @@
         "string",
         "byte_array"
       ],
+      "uniqueness": "not_guaranteed",
       "parameters": [
         {
           "name": "symbols",
@@ -297,6 +329,7 @@
         "float32",
         "float64"
       ],
+      "uniqueness": "not_guaranteed",
       "parameters": [
         {
           "name": "generator",
@@ -332,6 +365,7 @@
         "byte_array",
         "string"
       ],
+      "uniqueness": "not_guaranteed",
       "parameters": [
         {
           "name": "generator",
@@ -386,6 +420,7 @@
         "uuid",
         "uint8_array_of_16"
       ],
+      "uniqueness": "not_guaranteed",
       "parameters": [
         {
           "name": "generator",
@@ -407,6 +442,7 @@
         "byte_array",
         "hstore"
       ],
+      "uniqueness": "not_guaranteed",
       "parameters": [
         {
           "name": "operations",
@@ -422,6 +458,7 @@
       "supported_types": [
         "json"
       ],
+      "uniqueness": "not_guaranteed",
       "parameters": [
         {
           "name": "operations",
@@ -437,6 +474,7 @@
       "supported_types": [
         "all"
       ],
+      "uniqueness": "lossy",
       "parameters": [
         {
           "name": "literal",
@@ -453,6 +491,7 @@
         "string",
         "byte_array"
       ],
+      "uniqueness": "lossy",
       "parameters": [
         {
           "name": "type",
@@ -510,6 +549,7 @@
         "string",
         "citext"
       ],
+      "uniqueness": "not_guaranteed",
       "parameters": [
         {
           "name": "seed",
@@ -578,6 +618,7 @@
       "supported_types": [
         "string"
       ],
+      "uniqueness": "lossy",
       "parameters": [
         {
           "name": "seed",
@@ -607,6 +648,7 @@
       "supported_types": [
         "string"
       ],
+      "uniqueness": "lossy",
       "parameters": [
         {
           "name": "seed",
@@ -636,6 +678,7 @@
       "supported_types": [
         "string"
       ],
+      "uniqueness": "lossy",
       "parameters": [
         {
           "name": "seed",
@@ -665,6 +708,7 @@
       "supported_types": [
         "string"
       ],
+      "uniqueness": "not_guaranteed",
       "parameters": [
         {
           "name": "seed",
@@ -701,6 +745,7 @@
       "supported_types": [
         "all"
       ],
+      "uniqueness": "not_guaranteed",
       "parameters": [
         {
           "name": "anon_function",
@@ -850,6 +895,7 @@
         "string",
         "byte_array"
       ],
+      "uniqueness": "not_guaranteed",
       "parameters": [
         {
           "name": "prefix",
@@ -891,6 +937,7 @@
         "string",
         "byte_array"
       ],
+      "uniqueness": "not_guaranteed",
       "parameters": []
     },
     {
@@ -899,6 +946,7 @@
         "string",
         "byte_array"
       ],
+      "uniqueness": "not_guaranteed",
       "parameters": [
         {
           "name": "template",

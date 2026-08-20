@@ -18,7 +18,6 @@ import (
 	kafkalistener "github.com/xataio/pgstream/pkg/wal/listener/kafka"
 	pglistener "github.com/xataio/pgstream/pkg/wal/listener/postgres"
 	snapshotbuilder "github.com/xataio/pgstream/pkg/wal/listener/snapshot/builder"
-	"github.com/xataio/pgstream/pkg/wal/processor"
 	"github.com/xataio/pgstream/pkg/wal/replication"
 	replicationinstrumentation "github.com/xataio/pgstream/pkg/wal/replication/instrumentation"
 	pgreplication "github.com/xataio/pgstream/pkg/wal/replication/postgres"
@@ -28,13 +27,21 @@ import (
 )
 
 // Run will run the configured pgstream processes. This call is blocking.
-func Run(ctx context.Context, logger loglib.Logger, config *Config, init bool, instrumentation *otel.Instrumentation) error {
+// Pass WithPhaseTracker to expose snapshot/replication phase via /status and metrics.
+func Run(ctx context.Context, logger loglib.Logger, config *Config, init bool, instrumentation *otel.Instrumentation, opts ...InitOption) error {
 	if err := config.IsValid(); err != nil {
 		return fmt.Errorf("incompatible configuration: %w", err)
 	}
 
+	initConfig := config.GetInitConfig(opts...)
+	phaseTracker := initConfig.PhaseTracker
+
+	if err := registerPhaseMetric(instrumentation, phaseTracker); err != nil {
+		return fmt.Errorf("registering pipeline phase metric: %w", err)
+	}
+
 	if init {
-		if err := Init(ctx, config.GetInitConfig()); err != nil {
+		if err := Init(ctx, initConfig); err != nil {
 			return err
 		}
 	}
@@ -111,7 +118,7 @@ func Run(ctx context.Context, logger loglib.Logger, config *Config, init bool, i
 
 	// Processor
 
-	processor, closer, err := newProcessor(ctx, logger, config, checkpoint, processorTypeReplication, instrumentation)
+	replicationChain, closer, err := newProcessor(ctx, logger, config, checkpoint, processorTypeReplication, instrumentation)
 	defer closer()
 	if err != nil {
 		return err
@@ -125,24 +132,27 @@ func Run(ctx context.Context, logger loglib.Logger, config *Config, init bool, i
 		logger.Info("postgres listener configured")
 		opts := []pglistener.Option{
 			pglistener.WithLogger(logger),
+			pglistener.WithPhaseTracker(phaseTracker),
 		}
 		if config.Listener.Postgres.Snapshot != nil {
 			logger.Info("initial snapshot enabled")
 			// use a dedicated processor for the snapshot phase, to be able to
 			// close it and make sure the snapshot is complete before starting
 			// to process the WAL replication events.
-			snapshotProcessor, snapshotCloser, err := newProcessor(ctx, logger, config, checkpoint, processorTypeSnapshot, instrumentation)
+			snapshotChain, snapshotCloser, err := newProcessor(ctx, logger, config, checkpoint, processorTypeSnapshot, instrumentation)
 			defer snapshotCloser()
 			if err != nil {
 				return fmt.Errorf("error creating snapshot processor: %w", err)
 			}
 
+			config.applySnapshotRawJSONValues()
 			snapshotGenerator, err := snapshotbuilder.NewSnapshotGenerator(
 				ctx,
 				config.Listener.Postgres.Snapshot,
-				snapshotProcessor,
+				snapshotChain.processor,
 				logger,
-				instrumentation)
+				instrumentation,
+				config.restoreConflictTargetsBeforeData())
 			if err != nil {
 				return err
 			}
@@ -152,14 +162,15 @@ func Run(ctx context.Context, logger loglib.Logger, config *Config, init bool, i
 
 		listener = pglistener.New(
 			replicationHandler,
-			processor.ProcessWALEvent,
+			replicationChain.processor.ProcessWALEvent,
 			opts...)
 	case config.Listener.Kafka != nil:
 		logger.Info("kafka listener configured")
 		listener, err = kafkalistener.NewWALReader(
 			kafkaReader,
-			processor.ProcessWALEvent,
-			kafkalistener.WithLogger(logger))
+			replicationChain.processor.ProcessWALEvent,
+			kafkalistener.WithLogger(logger),
+			kafkalistener.WithPhaseTracker(phaseTracker))
 		if err != nil {
 			return err
 		}
@@ -187,20 +198,23 @@ var noopCloser func() error = func() error {
 	return nil
 }
 
-func newProcessor(ctx context.Context, logger loglib.Logger, config *Config, checkpoint checkpointer.Checkpoint, processorType processorType, instrumentation *otel.Instrumentation) (processor.Processor, closerFn, error) {
-	processor, err := buildProcessor(ctx, logger, &config.Processor, checkpoint, processorType, instrumentation)
+func newProcessor(ctx context.Context, logger loglib.Logger, config *Config, checkpoint checkpointer.Checkpoint, processorType processorType, instrumentation *otel.Instrumentation) (*processorChain, closerFn, error) {
+	target, err := buildProcessor(ctx, logger, &config.Processor, checkpoint, processorType, instrumentation)
 	if err != nil {
 		return nil, noopCloser, err
 	}
+	chain, closer, err := addProcessorModifiers(ctx, config, logger, target, instrumentation)
+	if err != nil {
+		// the target writer already holds a pool
+		if closeErr := target.Close(); closeErr != nil {
+			logger.Error(closeErr, "closing target writer after processor modifier setup failed")
+		}
+		return nil, noopCloser, err
+	}
+
 	var closerAgg closerAggregator
-	var closer closerFn
-	processor, closer, err = addProcessorModifiers(ctx, config, logger, processor, instrumentation)
-	if err != nil {
-		return nil, noopCloser, err
-	}
-
 	closerAgg.addCloserFn(closer)
-	closerAgg.addCloserFn(processor.Close)
+	closerAgg.addCloserFn(chain.processor.Close)
 
-	return processor, closerAgg.close, nil
+	return chain, closerAgg.close, nil
 }

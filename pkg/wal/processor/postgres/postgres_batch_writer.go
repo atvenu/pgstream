@@ -45,9 +45,21 @@ func NewBatchWriter(ctx context.Context, config *Config, opts ...WriterOption) (
 		dmlAdapter: dml,
 	}
 
-	bw.batchSender, err = batch.NewSender(ctx, &config.BatchConfig, bw.sendBatch, w.logger)
+	// The ordered batch writer (replication path) must send strictly in order,
+	// so it never uses the send-drainer pool, regardless of the SendConcurrency
+	// carried by the shared Config: in snapshot_and_replication mode the
+	// bulk-ingest snapshot writer and this writer are built from the same
+	// postgres.Config, and bulk ingest defaults SendConcurrency to >1.
+	batchConfig := config.BatchConfig
+	batchConfig.SendConcurrency = 1
+	bw.batchSender, err = batch.NewSender(ctx, &batchConfig, bw.sendBatch, w.logger,
+		batch.WithDroppedCounter[*walMessage](w.dropped))
 	if err != nil {
 		return nil, err
+	}
+
+	if err := w.initDroppedQueriesMetric(); err != nil {
+		return nil, fmt.Errorf("initialising postgres batch writer metrics: %w", err)
 	}
 
 	return bw, nil
@@ -87,9 +99,8 @@ func (w *BatchWriter) Name() string {
 
 func (w *BatchWriter) Close() error {
 	w.logger.Debug("closing batch writer")
-	w.batchSender.Close()
-
-	return w.close()
+	senderErr := w.batchSender.Close()
+	return errors.Join(senderErr, w.close())
 }
 
 func (w *BatchWriter) sendBatch(ctx context.Context, b *batch.Batch[*walMessage]) error {
@@ -144,6 +155,10 @@ func (w *BatchWriter) sendBatch(ctx context.Context, b *batch.Batch[*walMessage]
 					if _, err := w.pgConn.Exec(ctx, q.sql, q.args...); err != nil {
 						w.logger.Error(err, "running DDL query", loglib.Fields{"query_sql": q.sql, "query_args": q.args})
 						if !w.isInternalError(err) {
+							if w.strictMode {
+								return fmt.Errorf("strict mode: stopping on non-internal DDL failure: %w", err)
+							}
+							w.recordDroppedQuery(q, err)
 							continue
 						}
 						return err
@@ -192,7 +207,7 @@ func (w *BatchWriter) buildCoalescedQueries(run []*walMessage) ([]*query, error)
 		for i, m := range run {
 			events[i] = m.data
 		}
-		return w.dmlAdapter.buildBulkDeleteQuery(events)
+		return w.dmlAdapter.buildBulkDeleteQuery(events, run[0].schemaInfo)
 	case "I":
 		events := make([]*wal.Data, len(run))
 		for i, m := range run {
@@ -233,7 +248,11 @@ func (w *BatchWriter) flushQueries(ctx context.Context, queries []*query) error 
 
 func (w *BatchWriter) execQueries(ctx context.Context, queries []*query) ([]*query, error) {
 	retryQueries := []*query{}
+	var droppedQuery *query
 	err := w.pgConn.ExecInTx(ctx, func(tx pglib.Tx) error {
+		retryQueries = []*query{}
+		droppedQuery = nil
+
 		if err := w.setReplicationRoleToReplica(ctx, tx); err != nil {
 			return err
 		}
@@ -241,13 +260,12 @@ func (w *BatchWriter) execQueries(ctx context.Context, queries []*query) ([]*que
 		for i, q := range queries {
 			if _, err := tx.Exec(ctx, q.sql, q.args...); err != nil {
 				w.logger.Error(err, "executing sql query", loglib.Fields{
-					"sql":      q.sql,
-					"args":     q.args,
-					"severity": "DATALOSS",
+					"sql":  q.sql,
+					"args": q.args,
 				})
-				// if a query returns an error, it will abort the tx. Log it as
-				// dataloss and remove it from the list of queries to be
-				// retried.
+				// if a query returns an error, it will abort the tx. Remove it
+				// from the list of queries to be retried.
+				droppedQuery = q
 				retryQueries = removeIndex(queries, i)
 				return err
 			}
@@ -259,6 +277,13 @@ func (w *BatchWriter) execQueries(ctx context.Context, queries []*query) ([]*que
 		// if there was an internal error in the tx, there's no point in
 		// retrying, return error and stop processing.
 		return nil, err
+	}
+
+	if err != nil && droppedQuery != nil {
+		if w.strictMode {
+			return nil, fmt.Errorf("strict mode: stopping on non-internal query failure: %w", err)
+		}
+		w.recordDroppedQuery(droppedQuery, err)
 	}
 
 	// if there were no errors or no internal errors in the tx, return the
@@ -274,6 +299,7 @@ func (w *BatchWriter) isInternalError(err error) bool {
 	var errRelationAlreadyExists *pglib.ErrRelationAlreadyExists
 	var errPreconditionFailed *pglib.ErrPreconditionFailed
 	var errFeatureNotSupported *pglib.ErrFeatureNotSupported
+	var errValueEncoding *pglib.ErrValueEncoding
 	switch {
 	case errors.As(err, &errRelationDoesNotExist),
 		errors.As(err, &errConstraintViolation),
@@ -281,7 +307,8 @@ func (w *BatchWriter) isInternalError(err error) bool {
 		errors.As(err, &errDataException),
 		errors.As(err, &errRelationAlreadyExists),
 		errors.As(err, &errPreconditionFailed),
-		errors.As(err, &errFeatureNotSupported):
+		errors.As(err, &errFeatureNotSupported),
+		errors.As(err, &errValueEncoding):
 		return false
 	default:
 		return true
@@ -289,7 +316,7 @@ func (w *BatchWriter) isInternalError(err error) bool {
 }
 
 func removeIndex(s []*query, index int) []*query {
-	ret := make([]*query, 0)
+	ret := make([]*query, 0, len(s)-1)
 	ret = append(ret, s[:index]...)
 	return append(ret, s[index+1:]...)
 }

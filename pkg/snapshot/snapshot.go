@@ -2,15 +2,26 @@
 
 package snapshot
 
+import pglib "github.com/xataio/pgstream/internal/postgres"
+
 type Snapshot struct {
 	SchemaTables         map[string][]string
 	SchemaExcludedTables map[string][]string
+	// SchemaOnlyTables are part of the schema snapshot scope, but their data
+	// is not copied. SchemaTables entries listed by exact name (no wildcards)
+	// take precedence over a schema-only wildcard match, and
+	// SchemaExcludedTables take precedence over the schema-only list.
+	SchemaOnlyTables map[string][]string
+	// TableColumns pins the dumped columns.
+	// Nil resolves at read time.
+	TableColumns pglib.SchemaTableColumns
 }
 
 type Request struct {
 	Schema string
 	Tables []string
 	Status Status
+	Mode   RequestMode
 	Errors *SchemaErrors
 }
 
@@ -21,6 +32,24 @@ const (
 	StatusInProgress = Status("in progress")
 	StatusCompleted  = Status("completed")
 )
+
+// RequestMode captures what a snapshot request replicated to the target:
+// schema and data (data mode), or schema only.
+type RequestMode string
+
+const (
+	RequestModeData       = RequestMode("data")
+	RequestModeSchemaOnly = RequestMode("schema-only")
+)
+
+// GetMode returns the request mode, defaulting to data mode for requests
+// recorded before the mode was tracked.
+func (r *Request) GetMode() RequestMode {
+	if r.Mode == "" {
+		return RequestModeData
+	}
+	return r.Mode
+}
 
 func (s *Snapshot) GetSchemas() []string {
 	if s == nil {
@@ -40,8 +69,8 @@ func (s *Snapshot) GetTables() []string {
 	}
 
 	tables := []string{}
-	for schema, tables := range s.SchemaTables {
-		for _, table := range tables {
+	for schema, schemaTables := range s.SchemaTables {
+		for _, table := range schemaTables {
 			tables = append(tables, schema+"."+table)
 		}
 	}
@@ -54,6 +83,19 @@ func (s *Snapshot) HasTables() bool {
 	}
 
 	for _, tables := range s.SchemaTables {
+		if len(tables) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Snapshot) HasSchemaOnlyTables() bool {
+	if s == nil {
+		return false
+	}
+
+	for _, tables := range s.SchemaOnlyTables {
 		if len(tables) > 0 {
 			return true
 		}

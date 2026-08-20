@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	pglib "github.com/xataio/pgstream/internal/postgres"
 	pgmocks "github.com/xataio/pgstream/internal/postgres/mocks"
 	synclib "github.com/xataio/pgstream/internal/sync"
+	"github.com/xataio/pgstream/pkg/backoff"
 	loglib "github.com/xataio/pgstream/pkg/log"
 	"github.com/xataio/pgstream/pkg/wal"
 	"github.com/xataio/pgstream/pkg/wal/processor"
@@ -414,12 +416,167 @@ func TestBulkIngestWriter_sendBatch(t *testing.T) {
 					pgConn:          tc.pgConn,
 					disableTriggers: tc.disableTriggers,
 				},
+				copyBudget: synclib.NewWeightedSemaphore(pglib.MaxConns - copyBudgetReserve),
 			}
 
 			err := writer.sendBatch(context.Background(), tc.batch)
 			if !errors.Is(err, tc.wantErr) {
 				require.Equal(t, tc.wantErr, err)
 			}
+		})
+	}
+}
+
+// TestBulkIngestWriter_sendBatch_copyBudget verifies that the global
+// concurrent-COPY budget caps the number of COPYs in flight at once across all
+// concurrent sendBatch calls, regardless of how many callers there are.
+func TestBulkIngestWriter_sendBatch_copyBudget(t *testing.T) {
+	t.Parallel()
+
+	const budget = 2
+	const callers = 8
+
+	testQuery := &query{
+		schema:      "test_schema",
+		table:       "test_table",
+		columnNames: []string{`"id"`},
+		args:        []any{1},
+	}
+
+	var active, maxActive atomic.Int32
+	release := make(chan struct{})
+	pgConn := &pgmocks.Querier{
+		ExecInTxFn: func(ctx context.Context, f func(tx pglib.Tx) error) error {
+			n := active.Add(1)
+			for {
+				m := maxActive.Load()
+				if n <= m || maxActive.CompareAndSwap(m, n) {
+					break
+				}
+			}
+			<-release
+			active.Add(-1)
+			tx := &pgmocks.Tx{
+				CopyFromFn: func(context.Context, string, []string, [][]any) (int64, error) {
+					return 1, nil
+				},
+			}
+			return f(tx)
+		},
+	}
+
+	writer := &BulkIngestWriter{
+		Writer: &Writer{
+			logger: loglib.NewNoopLogger(),
+			pgConn: pgConn,
+		},
+		copyBudget: synclib.NewWeightedSemaphore(budget),
+	}
+
+	eg := errgroup.Group{}
+	for i := 0; i < callers; i++ {
+		eg.Go(func() error {
+			return writer.sendBatch(context.Background(), batch.NewBatch([]*query{testQuery}, nil))
+		})
+	}
+
+	// give the callers time to contend for the budget, then let them drain.
+	require.Eventually(t, func() bool {
+		return maxActive.Load() == budget
+	}, 5*time.Second, time.Millisecond)
+	close(release)
+
+	require.NoError(t, eg.Wait())
+	require.Equal(t, int32(budget), maxActive.Load(), "concurrent COPYs must not exceed the budget")
+}
+
+func TestCopyBudgetSize(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		maxConnections int32
+		expected       int64
+	}{
+		{name: "default pool", maxConnections: pglib.MaxConns, expected: 45},
+		{name: "configured pool", maxConnections: 12, expected: 7},
+		{name: "reserve matches pool", maxConnections: copyBudgetReserve, expected: 1},
+		{name: "pool smaller than reserve", maxConnections: 2, expected: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.expected, copyBudgetSize(tt.maxConnections))
+		})
+	}
+}
+
+func TestNewBulkIngestWriter_maxConnections(t *testing.T) {
+	tests := []struct {
+		name             string
+		url              string
+		maxConnections   uint
+		expected         int32
+		expectedObserver int32
+	}{
+		{
+			name:             "connection URL",
+			url:              "postgresql://user:password@localhost:5432/database?pool_max_conns=12",
+			expected:         12,
+			expectedObserver: 12,
+		},
+		{
+			name:             "writer config overrides connection URL",
+			url:              "postgresql://user:password@localhost:5432/database?pool_max_conns=12",
+			maxConnections:   20,
+			expected:         20,
+			expectedObserver: maxObserverConnections,
+		},
+		{
+			name:             "observer capped below the writer pool",
+			url:              "postgresql://user:password@localhost:5432/database",
+			maxConnections:   200,
+			expected:         200,
+			expectedObserver: maxObserverConnections,
+		},
+		{
+			name:             "observer never exceeds the writer pool",
+			url:              "postgresql://user:password@localhost:5432/database",
+			maxConnections:   2,
+			expected:         2,
+			expectedObserver: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			writer, err := NewBulkIngestWriter(t.Context(), &Config{
+				URL:            tt.url,
+				MaxConnections: tt.maxConnections,
+				RetryPolicy:    backoff.Config{DisableRetries: true},
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, writer.Close()) })
+
+			writerPool, ok := writer.pgConn.(*pglib.Pool)
+			require.True(t, ok)
+			require.Equal(t, tt.expected, writerPool.Config().MaxConns)
+
+			adapter, ok := writer.adapter.(*adapter)
+			require.True(t, ok)
+			observer, ok := adapter.schemaObserver.(*pgSchemaObserver)
+			require.True(t, ok)
+			observerPool, ok := observer.pgConn.(*pglib.Pool)
+			require.True(t, ok)
+			require.Equal(t, tt.expectedObserver, observerPool.Config().MaxConns)
+
+			budget := copyBudgetSize(tt.expected)
+			for range budget {
+				require.True(t, writer.copyBudget.TryAcquire(1))
+			}
+			require.False(t, writer.copyBudget.TryAcquire(1))
+			writer.copyBudget.Release(budget)
 		})
 	}
 }

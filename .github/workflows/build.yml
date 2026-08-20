@@ -18,16 +18,20 @@ jobs:
     name: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: "go.mod"
 
       - name: Run tests
         run: make test
 
+      # The coverage comment is posted from a separate workflow_run-triggered
+      # workflow (coverage-report.yml) so that it works for pull requests from
+      # forks: fork PRs only get a read-only GITHUB_TOKEN here, which cannot
+      # comment on the PR. That workflow downloads this artifact.
       - name: Archive code coverage results
         uses: actions/upload-artifact@v7
         with:
@@ -38,12 +42,31 @@ jobs:
     name: integration tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: "go.mod"
+
+      # The snapshot shells out to pg_dump, which refuses to dump from a server
+      # newer than itself. Runner images ship a 16 client, so tests using a
+      # newer source server (the read replica tests use 17) fail without this.
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client-17
+          # take precedence over the preinstalled client
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Verify pg_dump version
+        run: pg_dump --version
 
       - name: Run integration tests
         run: make integration-test
@@ -52,10 +75,10 @@ jobs:
     name: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: "go.mod"
           cache: false
@@ -66,7 +89,7 @@ jobs:
           # Require: The version of golangci-lint to use.
           # When `install-mode` is `binary` (default) the value can be v1.2 or v1.2.3 or `latest` to use the latest version.
           # When `install-mode` is `goinstall` the value can be v1.2.3, `latest`, or the hash of a commit.
-          version: v2.5.0
+          version: v2.10.1
 
           # Optional: golangci-lint command line arguments.
           #
@@ -74,26 +97,11 @@ jobs:
           # The location of the configuration file can be changed by using `--config=`
           args: --timeout=30m --config=.golangci.yml
 
-  coverage:
-    if: github.event_name == 'pull_request' # Do not run when workflow is triggered by push to main branch
-    runs-on: ubuntu-latest
-    needs: test # Depends on the artifact uploaded by the "test" job
-    permissions:
-      contents: read
-      actions: read # to download code coverage results from "test" job
-      pull-requests: write # write permission needed to comment on PR
-    steps:
-      - uses: fgrosse/go-coverage-report@v1.3.0
-        with:
-          coverage-artifact-name: "code-coverage"
-          coverage-file-name: "coverage"
-          root-package: "github.com/xataio/pgstream"
-
   license-check:
     name: license check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Ensure .go files have a license reference
         run: make license-check
@@ -102,10 +110,10 @@ jobs:
     name: code generation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: "go.mod"
 
@@ -124,35 +132,41 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test, integration-test, lint, license-check]
     if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write # create the GitHub release and upload artifacts
+      packages: write # push images to ghcr.io
+      id-token: write # request the OIDC token used to sign attestations
+      attestations: write # write GitHub artifact attestations
+      artifact-metadata: write # create the artifact metadata storage records that accompany attestations
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - run: git fetch --force --tags
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: "go.mod"
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
-          version: latest
+          version: "~> v2"
           args: release --clean
         env:
           # We use two github tokens here:
@@ -163,3 +177,62 @@ jobs:
           TAP_GITHUB_TOKEN: ${{ secrets.GIT_TOKEN }}
           GITHUB_USERNAME: ${{ github.repository_owner }}
           DOCKER_USERNAME: ghcr.io/${{ github.repository_owner }}
+
+      - name: Stage release binaries
+        run: |
+          set -euo pipefail
+          mkdir -p dist/release
+          jq -r '.[]
+                 | select(.name | test("^pgstream\\.[a-z]+\\."))
+                 | [.path, .name] | @tsv' \
+            dist/artifacts.json \
+            | while IFS=$'\t' read -r path name; do
+                cp "$path" "dist/release/$name"
+              done
+          if [ -z "$(ls -A dist/release)" ]; then
+            echo "no binaries matched; artifacts.json contained:"
+            jq -r '.[] | "\(.type)\t\(.name)"' dist/artifacts.json
+            exit 1
+          fi
+          ls -1 dist/release
+
+      # Signed build provenance for the released binaries/archives.
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: "dist/release/pgstream.*"
+
+      # Resolve the pushed multi-arch manifest digest so the image attestations
+      # cover the exact content (image tags have no "v" prefix).
+      - name: Resolve image digest
+        id: image
+        run: |
+          NAME="ghcr.io/${{ github.repository_owner }}/pgstream"
+          DIGEST="$(docker buildx imagetools inspect "${NAME}:${GITHUB_REF_NAME#v}" --format '{{.Manifest.Digest}}')"
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      # Signed build provenance for the container image, pushed to ghcr.io.
+      - name: Attest container image provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ steps.image.outputs.name }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          push-to-registry: true
+
+      # Generate an SPDX SBOM for the image (anchore/sbom-action manages syft
+      # internally) and attach it as a signed attestation, pushed to ghcr.io.
+      - name: Generate container image SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.image.outputs.name }}@${{ steps.image.outputs.digest }}
+          format: spdx-json
+          output-file: pgstream.image.sbom.spdx.json
+
+      - name: Attest container image SBOM
+        uses: actions/attest@v4.2.2
+        with:
+          subject-name: ${{ steps.image.outputs.name }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          sbom-path: pgstream.image.sbom.spdx.json
+          push-to-registry: true

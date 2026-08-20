@@ -147,6 +147,21 @@ func Test_QuoteIdentifier(t *testing.T) {
 			input:    "",
 			expected: `""`,
 		},
+		{
+			name:     "malicious lookalike quoted identifier is escaped, not trusted",
+			input:    `"a" ; DROP TABLE users; --"`,
+			expected: `"""a"" ; DROP TABLE users; --"""`,
+		},
+		{
+			name:     "already quoted identifier with escaped inner quote",
+			input:    `"my""table"`,
+			expected: `"my""table"`,
+		},
+		{
+			name:     "well-formed quoted identifier with doubled inner quotes is trusted",
+			input:    `"a""; DROP TABLE users; --"`,
+			expected: `"a""; DROP TABLE users; --"`,
+		},
 	}
 
 	for _, tc := range tests {
@@ -305,6 +320,16 @@ func Test_IsQuotedIdentifier(t *testing.T) {
 		{
 			name:     "three characters with quotes",
 			input:    `"a"`,
+			expected: true,
+		},
+		{
+			name:     "starts/ends with quote but has an unpaired inner quote - not well-formed",
+			input:    `"a" ; DROP TABLE users; --"`,
+			expected: false,
+		},
+		{
+			name:     "well-formed with doubled inner quotes",
+			input:    `"my""table"`,
 			expected: true,
 		},
 	}
@@ -562,9 +587,9 @@ func Test_UnquoteIdentifier(t *testing.T) {
 			expected: `""`,
 		},
 		{
-			name:     "three quotes - empty after unquoting",
+			name:     "three quotes - malformed (unpaired), returned as-is",
 			input:    `"""`,
-			expected: `"`,
+			expected: `"""`,
 		},
 		{
 			name:     "quoted with special characters",
@@ -587,6 +612,21 @@ func Test_UnquoteIdentifier(t *testing.T) {
 			expected: `my"table"name`,
 		},
 		{
+			// starts/ends with a quote but the inner quotes are unpaired, so it
+			// is not a well-formed quoted identifier - returned untouched rather
+			// than stripped into a mangled fragment.
+			name:     "malicious lookalike is not unquoted, returned as-is",
+			input:    `"a" ; DROP TABLE users; --"`,
+			expected: `"a" ; DROP TABLE users; --"`,
+		},
+		{
+			// every inner quote is doubled, so this IS a well-formed quoted
+			// identifier: outer quotes stripped and "" collapsed to ".
+			name:     "well-formed quoted identifier with doubled inner quotes is unquoted",
+			input:    `"a""; DROP TABLE users; --"`,
+			expected: `a"; DROP TABLE users; --`,
+		},
+		{
 			name:     "quoted empty string",
 			input:    `""""`,
 			expected: `"`,
@@ -605,4 +645,56 @@ func Test_UnquoteIdentifier(t *testing.T) {
 			require.Equal(t, tc.expected, got)
 		})
 	}
+}
+
+func Test_SchemaTableColumns_ColumnsFor(t *testing.T) {
+	t.Parallel()
+
+	// keys are raw catalog names, lookups may come from configuration
+	columns := SchemaTableColumns{
+		"public":     {"users": {"id", "name"}, "MixedCase": {"id"}},
+		"OtherShema": {"t": {"id"}},
+	}
+
+	tests := []struct {
+		name   string
+		schema string
+		table  string
+		want   []string
+	}{
+		{name: "bare names", schema: "public", table: "users", want: []string{"id", "name"}},
+		{name: "quoted schema", schema: `"public"`, table: "users", want: []string{"id", "name"}},
+		{name: "quoted table", schema: "public", table: `"users"`, want: []string{"id", "name"}},
+		{name: "both quoted", schema: `"public"`, table: `"users"`, want: []string{"id", "name"}},
+		{name: "mixed case preserved", schema: "public", table: "MixedCase", want: []string{"id"}},
+		{name: "mixed case quoted", schema: `"public"`, table: `"MixedCase"`, want: []string{"id"}},
+		{name: "mixed case schema", schema: `"OtherShema"`, table: "t", want: []string{"id"}},
+		{name: "unknown table", schema: "public", table: "nope", want: nil},
+		{name: "unknown schema", schema: "nope", table: "users", want: nil},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tc.want, columns.ColumnsFor(tc.schema, tc.table))
+		})
+	}
+
+	t.Run("nil receiver", func(t *testing.T) {
+		t.Parallel()
+
+		require.Nil(t, SchemaTableColumns(nil).ColumnsFor("public", "users"))
+	})
+
+	t.Run("a catalog name shaped like a quoted identifier does not round-trip", func(t *testing.T) {
+		t.Parallel()
+
+		// a table whose name literally contains the quotes. UnquoteIdentifier
+		// strips them, so the lookup misses and the caller falls back to
+		// reading the columns the table has now. Documented, not fixed: the
+		// two conventions are indistinguishable from a single string.
+		quoted := SchemaTableColumns{"public": {`"users"`: {"id"}}}
+		require.Nil(t, quoted.ColumnsFor("public", `"users"`))
+	})
 }

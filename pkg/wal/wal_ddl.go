@@ -55,8 +55,29 @@ func (d *Data) IsDDLEvent() bool {
 	return d.Action == LogicalMessageAction && d.Prefix == DDLPrefix
 }
 
-// WalDataToDDLEvent parses the wal data content field as a DDL event
+// WalDataToDDLEvent parses the wal data content field as a DDL event.
+//
+// The parsed result (or error) is cached on the Data value, so every processor
+// in the chain that calls this on the same event shares a single parse. The
+// returned *DDLEvent is that shared value and MUST be treated as read-only:
+// mutating it would leak into every other caller for the same event and make
+// behaviour order-dependent. Callers that need to modify it must work on a copy.
+//
+// Note that mutating a copy is only visible locally: the cache is keyed to the
+// Data value, and downstream processors re-derive the event by calling this
+// function again on the same Data, so they get the original cached parse, not
+// the copy. To forward a modified DDL event to the next processor in the
+// pipeline, replace event.Data with a new *Data whose Content reflects the
+// change (a fresh Data has an empty cache and re-parses) rather than expecting a
+// mutated copy to propagate on its own.
 func WalDataToDDLEvent(d *Data) (*DDLEvent, error) {
+	d.ddlEventOnce.Do(func() {
+		d.ddlEvent, d.ddlEventErr = parseDDLEvent(d)
+	})
+	return d.ddlEvent, d.ddlEventErr
+}
+
+func parseDDLEvent(d *Data) (*DDLEvent, error) {
 	if !d.IsDDLEvent() {
 		return nil, fmt.Errorf("%w: action=%s, prefix=%s", ErrNotDDLEvent, d.Action, d.Prefix)
 	}
@@ -186,4 +207,12 @@ func (c *DDLColumn) GetSequenceName() string {
 
 func (c *DDLColumn) IsGenerated() bool {
 	return c.Generated || c.Identity != nil
+}
+
+// IsAlwaysIdentity reports whether the column is defined as
+// GENERATED ALWAYS AS IDENTITY. Such columns reject explicit values in UPDATE
+// SET clauses — only DEFAULT is accepted. The DDL injector encodes this as
+// "ALWAYS" in the schema log (see migrations/postgres/core/2_create_emit_ddl_function_and_triggers.up.sql).
+func (c *DDLColumn) IsAlwaysIdentity() bool {
+	return c.Identity != nil && *c.Identity == "ALWAYS"
 }

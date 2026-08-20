@@ -22,7 +22,10 @@ var validateCmd = &cobra.Command{
 	Short: "Validate different parts of the pgstream configuration",
 }
 
-var errNoPostgresURL = errors.New("postgres URL is required for transformation rules validation")
+var (
+	errNoPostgresURL    = errors.New("postgres URL is required for validation")
+	errValidationFailed = errors.New("validation check identified issues")
+)
 
 var validateRulesCmd = &cobra.Command{
 	Use:     "rules",
@@ -65,10 +68,13 @@ var validateRulesCmd = &cobra.Command{
 				return err
 			}
 
-			if len(rulesStatus.Errors) == 0 {
-				sp.Success("transformation rules are valid")
-			} else {
+			switch {
+			case len(rulesStatus.Errors) > 0:
 				sp.Warning("pgstream validation check identified issues: ", strings.Join(rulesStatus.Errors, ", "))
+			case len(rulesStatus.Warnings) > 0:
+				sp.Warning("transformation rules are valid, with warnings: ", strings.Join(rulesStatus.Warnings, ", "))
+			default:
+				sp.Success("transformation rules are valid")
 			}
 
 			err = print(cmd, rulesStatus)
@@ -76,9 +82,13 @@ var validateRulesCmd = &cobra.Command{
 				return fmt.Errorf("failed to format pgstream validation status: %w", err)
 			}
 
+			if rulesStatus != nil && len(rulesStatus.Errors) > 0 {
+				return errValidationFailed
+			}
+
 			return nil
 		}()
-		if err != nil {
+		if err != nil && !errors.Is(err, errValidationFailed) {
 			sp.Fail(err.Error())
 		}
 

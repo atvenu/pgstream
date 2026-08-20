@@ -10,25 +10,28 @@ import (
 	"github.com/spf13/viper"
 	"github.com/xataio/pgstream/cmd/config"
 	"github.com/xataio/pgstream/internal/log/zerolog"
+	"github.com/xataio/pgstream/internal/phase"
 	"github.com/xataio/pgstream/pkg/stream"
 )
 
 var snapshotCmd = &cobra.Command{
 	Use:     "snapshot",
-	Short:   "Snapshot performs a snapshot of the configured source Postgres database into the configured target",
+	Short:   "Snapshot performs a one-time data snapshot of a PostgreSQL database",
+	Long:    "Snapshot performs a one-time data snapshot of a PostgreSQL database. For continuous replication or combined snapshot+replication, use the 'run' command with --snapshot-tables flag.",
 	PreRunE: snapshotFlagBinding,
 	RunE:    withProfiling(withSignalWatcher(snapshot)),
-	Example: `
-	pgstream snapshot --postgres-url <postgres-url> --target postgres --target-url <target-url> --tables <schema.table> --reset
-	pgstream snapshot --config config.yaml --log-level info
-	pgstream snapshot --config config.env`,
+	Example: `  # Snapshot specific tables from a PostgreSQL database to a target PostgreSQL database
+  pgstream snapshot --postgres-url <postgres-url> --target postgres --target-url <target-url> --tables <schema.table> --reset
+  # Snapshot using a YAML configuration file (requires source.postgres.mode: 'snapshot')
+  pgstream snapshot --config config.yaml --log-level info
+  # Snapshot using an environment configuration file
+  pgstream snapshot --config config.env`,
 }
 
 func snapshot(ctx context.Context) error {
-	logger := zerolog.NewLogger(&zerolog.Config{
-		LogLevel: viper.GetString("PGSTREAM_LOG_LEVEL"),
-	})
+	logger := zerolog.NewLogger(loggerConfigFromViper())
 	zerolog.SetGlobalLogger(logger)
+	watchLogLevelReloads(ctx, logger)
 
 	streamConfig, err := config.ParseStreamConfig()
 	if err != nil {
@@ -41,10 +44,24 @@ func snapshot(ctx context.Context) error {
 	}
 	defer provider.Close()
 
-	return stream.Snapshot(ctx, zerolog.NewStdLogger(logger), streamConfig, provider.NewInstrumentation("snapshot"))
+	stdLogger := zerolog.NewStdLogger(logger)
+	phaseTracker := phase.NewTracker()
+	stopHealth, err := startHealthServer(ctx, stdLogger, streamConfig.SourcePostgresURL(), phaseTracker)
+	if err != nil {
+		return err
+	}
+	defer stopHealth()
+
+	return stream.Snapshot(ctx, stdLogger, streamConfig, provider.NewInstrumentation("snapshot"), stream.WithPhaseTracker(phaseTracker))
 }
 
 func snapshotFlagBinding(cmd *cobra.Command, args []string) error {
+	// bind the target flags first: the bulk ingest defaulting below checks the
+	// target postgres URL, which is bound from the --target-url flag here
+	if err := targetFlagBinding(cmd); err != nil {
+		return err
+	}
+
 	// to be able to overwrite configuration with flags when yaml config file is
 	// provided
 	viper.BindPFlag("source.postgres.url", cmd.Flags().Lookup("postgres-url"))
@@ -92,5 +109,5 @@ func snapshotFlagBinding(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return targetFlagBinding(cmd)
+	return nil
 }

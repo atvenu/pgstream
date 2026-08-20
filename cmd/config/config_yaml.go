@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/xataio/pgstream/internal/health"
 	"github.com/xataio/pgstream/pkg/backoff"
 	"github.com/xataio/pgstream/pkg/kafka"
 	"github.com/xataio/pgstream/pkg/otel"
@@ -33,11 +34,23 @@ import (
 type InstrumentationConfig struct {
 	Metrics *MetricsConfig `mapstructure:"metrics" yaml:"metrics"`
 	Traces  *TracesConfig  `mapstructure:"traces" yaml:"traces"`
+	Health  *HealthConfig  `mapstructure:"health" yaml:"health"`
+}
+
+type HealthConfig struct {
+	Enabled bool   `mapstructure:"enabled" yaml:"enabled"`
+	Address string `mapstructure:"address" yaml:"address"`
 }
 
 type MetricsConfig struct {
-	Endpoint           string `mapstructure:"endpoint" yaml:"endpoint"`
-	CollectionInterval int    `mapstructure:"collection_interval" yaml:"collection_interval"`
+	Prometheus         *PrometheusConfig `mapstructure:"prometheus" yaml:"prometheus"`
+	Endpoint           string            `mapstructure:"endpoint" yaml:"endpoint"`
+	CollectionInterval int               `mapstructure:"collection_interval" yaml:"collection_interval"`
+}
+
+type PrometheusConfig struct {
+	Enabled  bool   `mapstructure:"enabled" yaml:"enabled"`
+	Endpoint string `mapstructure:"endpoint" yaml:"endpoint"`
 }
 
 type TracesConfig struct {
@@ -49,6 +62,17 @@ type YAMLConfig struct {
 	Source    SourceConfig    `mapstructure:"source" yaml:"source"`
 	Target    TargetConfig    `mapstructure:"target" yaml:"target"`
 	Modifiers ModifiersConfig `mapstructure:"modifiers" yaml:"modifiers"`
+	Logging   *LoggingConfig  `mapstructure:"logging" yaml:"logging"`
+}
+
+type LoggingConfig struct {
+	Level  string              `mapstructure:"level" yaml:"level"`
+	Format LoggingFormatConfig `mapstructure:"format" yaml:"format"`
+}
+
+type LoggingFormatConfig struct {
+	Type    string `mapstructure:"type" yaml:"type"`
+	NoColor bool   `mapstructure:"no_color" yaml:"no_color"`
 }
 
 type SourceConfig struct {
@@ -61,7 +85,10 @@ type TargetConfig struct {
 	Kafka    *KafkaTargetConfig    `mapstructure:"kafka" yaml:"kafka"`
 	Search   *SearchConfig         `mapstructure:"search" yaml:"search"`
 	Webhooks *WebhooksConfig       `mapstructure:"webhooks" yaml:"webhooks"`
+	Stdout   *StdoutTargetConfig   `mapstructure:"stdout" yaml:"stdout"`
 }
+
+type StdoutTargetConfig struct{}
 
 type PostgresConfig struct {
 	URL         string             `mapstructure:"url" yaml:"url"`
@@ -75,6 +102,7 @@ type SnapshotConfig struct {
 	Mode                    string                  `mapstructure:"mode" yaml:"mode"`
 	Tables                  []string                `mapstructure:"tables" yaml:"tables"`
 	ExcludedTables          []string                `mapstructure:"excluded_tables" yaml:"excluded_tables"`
+	SchemaOnlyTables        []string                `mapstructure:"schema_only_tables" yaml:"schema_only_tables"`
 	Recorder                *SnapshotRecorderConfig `mapstructure:"recorder" yaml:"recorder"`
 	SnapshotWorkers         int                     `mapstructure:"snapshot_workers" yaml:"snapshot_workers"`
 	Data                    *SnapshotDataConfig     `mapstructure:"data" yaml:"data"`
@@ -88,10 +116,10 @@ type SnapshotRecorderConfig struct {
 }
 
 type SnapshotDataConfig struct {
-	SchemaWorkers  int    `mapstructure:"schema_workers" yaml:"schema_workers"`
-	TableWorkers   int    `mapstructure:"table_workers" yaml:"table_workers"`
-	BatchBytes     uint64 `mapstructure:"batch_bytes" yaml:"batch_bytes"`
-	MaxConnections uint   `mapstructure:"max_connections" yaml:"max_connections"`
+	SchemaWorkers  int      `mapstructure:"schema_workers" yaml:"schema_workers"`
+	TableWorkers   int      `mapstructure:"table_workers" yaml:"table_workers"`
+	BatchBytes     byteSize `mapstructure:"batch_bytes" yaml:"batch_bytes"`
+	MaxConnections uint     `mapstructure:"max_connections" yaml:"max_connections"`
 }
 
 type SnapshotSchemaConfig struct {
@@ -99,15 +127,19 @@ type SnapshotSchemaConfig struct {
 }
 
 type PgDumpPgRestoreConfig struct {
-	CleanTargetDB          bool     `mapstructure:"clean_target_db" yaml:"clean_target_db"`
-	CreateTargetDB         bool     `mapstructure:"create_target_db" yaml:"create_target_db"`
-	IncludeGlobalDBObjects bool     `mapstructure:"include_global_db_objects" yaml:"include_global_db_objects"`
-	Role                   string   `mapstructure:"role" yaml:"role"`
-	RolesSnapshotMode      string   `mapstructure:"roles_snapshot_mode" yaml:"roles_snapshot_mode"`
-	NoOwner                bool     `mapstructure:"no_owner" yaml:"no_owner"`
-	NoPrivileges           bool     `mapstructure:"no_privileges" yaml:"no_privileges"`
-	DumpFile               string   `mapstructure:"dump_file" yaml:"dump_file"`
-	ExcludedSecurityLabels []string `mapstructure:"excluded_security_labels" yaml:"excluded_security_labels"`
+	CleanTargetDB                  bool     `mapstructure:"clean_target_db" yaml:"clean_target_db"`
+	CreateTargetDB                 bool     `mapstructure:"create_target_db" yaml:"create_target_db"`
+	IncludeGlobalDBObjects         bool     `mapstructure:"include_global_db_objects" yaml:"include_global_db_objects"`
+	Role                           string   `mapstructure:"role" yaml:"role"`
+	RolesSnapshotMode              string   `mapstructure:"roles_snapshot_mode" yaml:"roles_snapshot_mode"`
+	NoOwner                        bool     `mapstructure:"no_owner" yaml:"no_owner"`
+	NoPrivileges                   bool     `mapstructure:"no_privileges" yaml:"no_privileges"`
+	DumpFile                       string   `mapstructure:"dump_file" yaml:"dump_file"`
+	ExcludedSecurityLabels         []string `mapstructure:"excluded_security_labels" yaml:"excluded_security_labels"`
+	RefreshMaterializedViews       bool     `mapstructure:"refresh_materialized_views" yaml:"refresh_materialized_views"`
+	IndexConstraintSessionSettings []string `mapstructure:"index_constraint_session_settings" yaml:"index_constraint_session_settings"`
+	IncludeObjectTypes             []string `mapstructure:"include_object_types" yaml:"include_object_types"`
+	ExcludeObjectTypes             []string `mapstructure:"exclude_object_types" yaml:"exclude_object_types"`
 }
 
 type ReplicationConfig struct {
@@ -116,7 +148,9 @@ type ReplicationConfig struct {
 }
 
 type PluginConfig struct {
-	IncludeXIDs bool `mapstructure:"include_xids" yaml:"include_xids"`
+	IncludeXIDs  bool   `mapstructure:"include_xids" yaml:"include_xids"`
+	AddTables    string `mapstructure:"add_tables" yaml:"add_tables"`
+	FilterTables string `mapstructure:"filter_tables" yaml:"filter_tables"`
 }
 
 type KafkaConfig struct {
@@ -155,6 +189,7 @@ type ExponentialBackoffConfig struct {
 	MaxRetries      int `mapstructure:"max_retries" yaml:"max_retries"`
 	InitialInterval int `mapstructure:"initial_interval" yaml:"initial_interval"`
 	MaxInterval     int `mapstructure:"max_interval" yaml:"max_interval"`
+	MaxElapsedTime  int `mapstructure:"max_elapsed_time" yaml:"max_elapsed_time"`
 }
 
 type ConstantBackoffConfig struct {
@@ -163,13 +198,17 @@ type ConstantBackoffConfig struct {
 }
 
 type PostgresTargetConfig struct {
-	URL              string            `mapstructure:"url" yaml:"url"`
-	Batch            *BatchConfig      `mapstructure:"batch" yaml:"batch"`
-	BulkIngest       *BulkIngestConfig `mapstructure:"bulk_ingest" yaml:"bulk_ingest"`
-	DisableTriggers  bool              `mapstructure:"disable_triggers" yaml:"disable_triggers"`
-	OnConflictAction string            `mapstructure:"on_conflict_action" yaml:"on_conflict_action"`
-	RetryPolicy      BackoffConfig     `mapstructure:"retry_policy" yaml:"retry_policy"`
-	IgnoreDDL        bool              `mapstructure:"ignore_ddl" yaml:"ignore_ddl"`
+	URL                   string            `mapstructure:"url" yaml:"url"`
+	MaxConnections        uint              `mapstructure:"max_connections" yaml:"max_connections"`
+	Batch                 *BatchConfig      `mapstructure:"batch" yaml:"batch"`
+	BulkIngest            *BulkIngestConfig `mapstructure:"bulk_ingest" yaml:"bulk_ingest"`
+	DisableTriggers       bool              `mapstructure:"disable_triggers" yaml:"disable_triggers"`
+	OnConflictAction      string            `mapstructure:"on_conflict_action" yaml:"on_conflict_action"`
+	RetryPolicy           BackoffConfig     `mapstructure:"retry_policy" yaml:"retry_policy"`
+	IgnoreDDL             bool              `mapstructure:"ignore_ddl" yaml:"ignore_ddl"`
+	StrictMode            bool              `mapstructure:"strict_mode" yaml:"strict_mode"`
+	IncludeDDLObjectTypes []string          `mapstructure:"include_ddl_object_types" yaml:"include_ddl_object_types"`
+	ExcludeDDLObjectTypes []string          `mapstructure:"exclude_ddl_object_types" yaml:"exclude_ddl_object_types"`
 }
 
 type KafkaTargetConfig struct {
@@ -184,34 +223,50 @@ type KafkaTopicConfig struct {
 	Partitions        int    `mapstructure:"partitions" yaml:"partitions"`
 	ReplicationFactor int    `mapstructure:"replication_factor" yaml:"replication_factor"`
 	AutoCreate        bool   `mapstructure:"auto_create" yaml:"auto_create"`
+	PartitionKey      string `mapstructure:"partition_key" yaml:"partition_key"`
 }
 
 type SearchConfig struct {
-	Engine     string         `mapstructure:"engine" yaml:"engine"`
-	URL        string         `mapstructure:"url" yaml:"url"`
-	Batch      *BatchConfig   `mapstructure:"batch" yaml:"batch"`
-	Backoff    *BackoffConfig `mapstructure:"backoff" yaml:"backoff"`
-	HashDocIDs bool           `mapstructure:"hash_doc_ids" yaml:"hash_doc_ids"`
+	Engine     string           `mapstructure:"engine" yaml:"engine"`
+	URL        string           `mapstructure:"url" yaml:"url"`
+	Batch      *BatchConfig     `mapstructure:"batch" yaml:"batch"`
+	Backoff    *BackoffConfig   `mapstructure:"backoff" yaml:"backoff"`
+	HashDocIDs bool             `mapstructure:"hash_doc_ids" yaml:"hash_doc_ids"`
+	TLS        *SearchTLSConfig `mapstructure:"tls" yaml:"tls"`
+}
+
+// SearchTLSConfig configures the HTTPS transport used to talk to the search
+// store.
+type SearchTLSConfig struct {
+	CACert             string `mapstructure:"ca_cert" yaml:"ca_cert"`
+	ClientCert         string `mapstructure:"client_cert" yaml:"client_cert"`
+	ClientKey          string `mapstructure:"client_key" yaml:"client_key"`
+	InsecureSkipVerify bool   `mapstructure:"insecure_skip_verify" yaml:"insecure_skip_verify"`
 }
 
 type BatchConfig struct {
 	Timeout          int                  `mapstructure:"timeout" yaml:"timeout"`
 	Size             int                  `mapstructure:"size" yaml:"size"`
-	MaxBytes         int                  `mapstructure:"max_bytes" yaml:"max_bytes"`
-	MaxQueueBytes    int                  `mapstructure:"max_queue_bytes" yaml:"max_queue_bytes"`
+	MaxBytes         byteSize             `mapstructure:"max_bytes" yaml:"max_bytes"`
+	MaxQueueBytes    byteSize             `mapstructure:"max_queue_bytes" yaml:"max_queue_bytes"`
 	IgnoreSendErrors bool                 `mapstructure:"ignore_send_errors" yaml:"ignore_send_errors"`
 	AutoTune         *BatchAutoTuneConfig `mapstructure:"auto_tune" yaml:"auto_tune"`
 }
 
 type BatchAutoTuneConfig struct {
-	Enabled              bool    `mapstructure:"enabled" yaml:"enabled"`
-	MaxBatchBytes        int64   `mapstructure:"max_batch_bytes" yaml:"max_batch_bytes"`
-	MinBatchBytes        int64   `mapstructure:"min_batch_bytes" yaml:"min_batch_bytes"`
-	ConvergenceThreshold float64 `mapstructure:"convergence_threshold" yaml:"convergence_threshold"`
+	Enabled              bool     `mapstructure:"enabled" yaml:"enabled"`
+	MaxBatchBytes        byteSize `mapstructure:"max_batch_bytes" yaml:"max_batch_bytes"`
+	MinBatchBytes        byteSize `mapstructure:"min_batch_bytes" yaml:"min_batch_bytes"`
+	ConvergenceThreshold float64  `mapstructure:"convergence_threshold" yaml:"convergence_threshold"`
 }
 
 type BulkIngestConfig struct {
 	Enabled bool `mapstructure:"enabled" yaml:"enabled"`
+	// CopyWorkers is the number of concurrent COPY streams (send drainers) used
+	// per table when bulk ingesting. Defaults to 8. It names the write-side
+	// COPY streams, distinct from snapshot.data.table_workers which is the
+	// read-side page-range reader count.
+	CopyWorkers int `mapstructure:"copy_workers" yaml:"copy_workers"`
 }
 
 type WebhooksConfig struct {
@@ -241,14 +296,21 @@ type WebhookServerConfig struct {
 }
 
 type WebhookNotifierConfig struct {
-	WorkerCount   int `mapstructure:"worker_count" yaml:"worker_count"`
-	ClientTimeout int `mapstructure:"client_timeout" yaml:"client_timeout"`
+	WorkerCount   int            `mapstructure:"worker_count" yaml:"worker_count"`
+	ClientTimeout int            `mapstructure:"client_timeout" yaml:"client_timeout"`
+	Backoff       *BackoffConfig `mapstructure:"backoff" yaml:"backoff"`
+	StrictMode    bool           `mapstructure:"strict_mode" yaml:"strict_mode"`
+}
+
+type SanitizeConfig struct {
+	StripNullCharBytes bool `mapstructure:"strip_null_char_bytes" yaml:"strip_null_char_bytes"`
 }
 
 type ModifiersConfig struct {
 	Injector        *InjectorConfig        `mapstructure:"injector" yaml:"injector"`
 	Transformations *TransformationsConfig `mapstructure:"transformations" yaml:"transformations"`
 	Filter          *FilterConfig          `mapstructure:"filter" yaml:"filter"`
+	Sanitize        *SanitizeConfig        `mapstructure:"sanitize" yaml:"sanitize"`
 }
 
 type InjectorConfig struct {
@@ -257,8 +319,9 @@ type InjectorConfig struct {
 }
 
 type FilterConfig struct {
-	IncludeTables []string `mapstructure:"include_tables" yaml:"include_tables"`
-	ExcludeTables []string `mapstructure:"exclude_tables" yaml:"exclude_tables"`
+	IncludeTables    []string `mapstructure:"include_tables" yaml:"include_tables"`
+	ExcludeTables    []string `mapstructure:"exclude_tables" yaml:"exclude_tables"`
+	SchemaOnlyTables []string `mapstructure:"schema_only_tables" yaml:"schema_only_tables"`
 }
 
 type TransformationsConfig struct {
@@ -266,6 +329,7 @@ type TransformationsConfig struct {
 	DumpInferredRules       bool                      `mapstructure:"dump_inferred_rules" yaml:"dump_inferred_rules"`
 	TransformerRules        []TableTransformersConfig `mapstructure:"table_transformers" yaml:"table_transformers"`
 	ValidationMode          string                    `mapstructure:"validation_mode" yaml:"validation_mode"`
+	OnError                 string                    `mapstructure:"on_error" yaml:"on_error"`
 }
 type TableTransformersConfig struct {
 	Schema         string                              `mapstructure:"schema" yaml:"schema"`
@@ -275,9 +339,10 @@ type TableTransformersConfig struct {
 }
 
 type ColumnTransformersConfig struct {
-	Name              string         `mapstructure:"name" yaml:"name"`
-	Parameters        map[string]any `mapstructure:"parameters" yaml:"parameters"`
-	DynamicParameters map[string]any `mapstructure:"dynamic_parameters" yaml:"dynamic_parameters"`
+	Name                string         `mapstructure:"name" yaml:"name"`
+	Parameters          map[string]any `mapstructure:"parameters" yaml:"parameters"`
+	DynamicParameters   map[string]any `mapstructure:"dynamic_parameters" yaml:"dynamic_parameters"`
+	AllowUniquenessLoss bool           `mapstructure:"allow_uniqueness_loss" yaml:"allow_uniqueness_loss"`
 }
 
 // postgres source modes
@@ -314,11 +379,19 @@ const (
 	relaxedValidationMode    = "relaxed"
 )
 
+// transformer on-error policies
+const (
+	failOnError        = transformer.OnErrorFail
+	passThroughOnError = transformer.OnErrorPassThrough
+	nullOnError        = transformer.OnErrorNull
+)
+
 var (
 	errUnsupportedSnapshotMode                 = errors.New("unsupported snapshot mode, must be one of 'full', 'schema' or 'data'")
 	errUnsupportedPostgresSourceMode           = errors.New("unsupported postgres source mode, must be one of 'replication', 'snapshot' or 'snapshot_and_replication'")
 	errUnsupportedTransformationValidationMode = errors.New("unsupported transformation validation mode, must be one of 'strict', 'table_level' or 'relaxed'")
 	errUnsupportedTableValidationMode          = errors.New("unsupported table level validation mode, must be either 'strict' or 'relaxed'")
+	errUnsupportedTransformationOnError        = errors.New("unsupported transformation on_error policy, must be one of 'fail', 'pass-through' or 'null'")
 	errTableTransformersNotProvided            = errors.New("table_transformers must be provided when transformation config is set")
 	errInvalidTableValidationConfig            = errors.New("table level validation mode should be used when transformation validation mode is set to 'table_level'")
 	errUnsupportedSearchEngine                 = errors.New("unsupported search engine, must be one of 'opensearch' or 'elasticsearch'")
@@ -327,15 +400,34 @@ var (
 	errInvalidSnapshotRecorderConfig           = errors.New("snapshot recorder config requires a postgres url")
 	errInvalidSampleRatio                      = errors.New("trace sample ratio must be a value between 0.0 and 1.0")
 	errSchemaSnapshotNotConfigured             = errors.New("schema snapshot config must be provided when snapshot mode is 'full' or 'schema'")
+	errSchemaOnlyTablesSnapshotMode            = errors.New("snapshot schema_only_tables can only be used when snapshot mode is 'full' or 'schema'")
 )
+
+func (c *InstrumentationConfig) toHealthConfig() *health.Config {
+	if c.Health == nil {
+		return &health.Config{}
+	}
+	return &health.Config{
+		Enabled: c.Health.Enabled,
+		Address: c.Health.Address,
+	}
+}
 
 func (c *InstrumentationConfig) toOtelConfig() (*otel.Config, error) {
 	cfg := &otel.Config{}
 	if c.Metrics != nil {
-		cfg.Metrics = &otel.MetricsConfig{
+		metricsCfg := &otel.MetricsConfig{
 			Endpoint:           c.Metrics.Endpoint,
 			CollectionInterval: time.Duration(c.Metrics.CollectionInterval) * time.Second,
+			Prometheus:         nil,
 		}
+		if c.Metrics.Prometheus != nil {
+			metricsCfg.Prometheus = &otel.PrometheusConfig{
+				Enabled:  c.Metrics.Prometheus.Enabled,
+				Endpoint: c.Metrics.Prometheus.Endpoint,
+			}
+		}
+		cfg.Metrics = metricsCfg
 	}
 
 	if c.Traces != nil {
@@ -384,7 +476,9 @@ func (c *YAMLConfig) parseProcessorConfig() (stream.ProcessorConfig, error) {
 		Kafka:    c.parseKafkaProcessorConfig(),
 		Postgres: c.parsePostgresProcessorConfig(),
 		Webhook:  c.parseWebhookProcessorConfig(),
+		Stdout:   c.parseStdoutProcessorConfig(),
 		Filter:   c.parseFilterConfig(),
+		Sanitize: c.parseSanitizeConfig(),
 	}
 
 	var err error
@@ -429,6 +523,8 @@ func (c *YAMLConfig) parsePostgresListenerConfig() (*stream.PostgresListenerConf
 			replicationSlotName = c.Source.Postgres.Replication.ReplicationSlot
 			if c.Source.Postgres.Replication.Plugin != nil {
 				pluginArgs.IncludeXIDs = c.Source.Postgres.Replication.Plugin.IncludeXIDs
+				pluginArgs.AddTables = c.Source.Postgres.Replication.Plugin.AddTables
+				pluginArgs.FilterTables = c.Source.Postgres.Replication.Plugin.FilterTables
 			}
 		}
 		streamCfg.Replication = pgreplication.Config{
@@ -447,10 +543,13 @@ func (c *YAMLConfig) parsePostgresListenerConfig() (*stream.PostgresListenerConf
 		}
 	}
 
-	// if there's a filter config, apply it to the replication config
+	// if there's a filter config, apply it to the replication config so that
+	// "no tuple identifier" warnings are suppressed for tables whose data
+	// events are filtered out anyway
 	if c.Modifiers.Filter != nil {
 		streamCfg.Replication.ExcludeTables = c.Modifiers.Filter.ExcludeTables
 		streamCfg.Replication.IncludeTables = c.Modifiers.Filter.IncludeTables
+		streamCfg.Replication.SchemaOnlyTables = c.Modifiers.Filter.SchemaOnlyTables
 	}
 
 	return streamCfg, nil
@@ -464,8 +563,9 @@ func (c *YAMLConfig) parseSnapshotConfig() (*snapshotbuilder.SnapshotListenerCon
 
 	streamCfg := &snapshotbuilder.SnapshotListenerConfig{
 		Adapter: adapter.SnapshotConfig{
-			Tables:         snapshotConfig.Tables,
-			ExcludedTables: snapshotConfig.ExcludedTables,
+			Tables:           snapshotConfig.Tables,
+			ExcludedTables:   snapshotConfig.ExcludedTables,
+			SchemaOnlyTables: snapshotConfig.SchemaOnlyTables,
 		},
 		DisableProgressTracking: snapshotConfig.DisableProgressTracking,
 	}
@@ -488,6 +588,10 @@ func (c *YAMLConfig) parseSnapshotConfig() (*snapshotbuilder.SnapshotListenerCon
 		snapshotConfig.Mode = fullSnapshotMode
 	default:
 		return nil, errUnsupportedSnapshotMode
+	}
+
+	if snapshotConfig.Mode == dataSnapshotMode && len(snapshotConfig.SchemaOnlyTables) > 0 {
+		return nil, errSchemaOnlyTablesSnapshotMode
 	}
 
 	if snapshotConfig.Mode == fullSnapshotMode || snapshotConfig.Mode == dataSnapshotMode {
@@ -516,7 +620,7 @@ func (c *YAMLConfig) parseDataSnapshotConfig() *pgsnapshotgenerator.Config {
 	}
 
 	if snapshotCfg.Data != nil {
-		streamCfg.BatchBytes = snapshotCfg.Data.BatchBytes
+		streamCfg.BatchBytes = uint64(snapshotCfg.Data.BatchBytes)
 		streamCfg.SchemaWorkers = uint(snapshotCfg.Data.SchemaWorkers)
 		streamCfg.TableWorkers = uint(snapshotCfg.Data.TableWorkers)
 		streamCfg.MaxConnections = snapshotCfg.Data.MaxConnections
@@ -551,6 +655,10 @@ func (c *YAMLConfig) parseSchemaSnapshotConfig() (*snapshotbuilder.SchemaSnapsho
 		streamSchemaCfg.DumpRestore.NoPrivileges = schemaSnapshotCfg.PgDumpPgRestore.NoPrivileges
 		streamSchemaCfg.DumpRestore.DumpDebugFile = schemaSnapshotCfg.PgDumpPgRestore.DumpFile
 		streamSchemaCfg.DumpRestore.ExcludedSecurityLabels = schemaSnapshotCfg.PgDumpPgRestore.ExcludedSecurityLabels
+		streamSchemaCfg.DumpRestore.RefreshMaterializedViews = schemaSnapshotCfg.PgDumpPgRestore.RefreshMaterializedViews
+		streamSchemaCfg.DumpRestore.IndexConstraintSessionSettings = schemaSnapshotCfg.PgDumpPgRestore.IndexConstraintSessionSettings
+		streamSchemaCfg.DumpRestore.IncludeObjectTypes = schemaSnapshotCfg.PgDumpPgRestore.IncludeObjectTypes
+		streamSchemaCfg.DumpRestore.ExcludeObjectTypes = schemaSnapshotCfg.PgDumpPgRestore.ExcludeObjectTypes
 
 		var err error
 		streamSchemaCfg.DumpRestore.RolesSnapshotMode, err = getRolesSnapshotMode(schemaSnapshotCfg.PgDumpPgRestore.RolesSnapshotMode)
@@ -597,9 +705,17 @@ func (c *YAMLConfig) parseKafkaProcessorConfig() *stream.KafkaProcessorConfig {
 				},
 				TLS: c.Target.Kafka.TLS.parseTLSConfig(),
 			},
-			Batch: c.Target.Kafka.Batch.parseBatchConfig(),
+			Batch:        c.Target.Kafka.Batch.parseBatchConfig(),
+			PartitionKey: kafkaprocessor.PartitionKey(c.Target.Kafka.Topic.PartitionKey),
 		},
 	}
+}
+
+func (c *YAMLConfig) parseStdoutProcessorConfig() *stream.StdoutProcessorConfig {
+	if c.Target.Stdout == nil {
+		return nil
+	}
+	return &stream.StdoutProcessorConfig{}
 }
 
 func (c *YAMLConfig) parsePostgresProcessorConfig() *stream.PostgresProcessorConfig {
@@ -609,18 +725,23 @@ func (c *YAMLConfig) parsePostgresProcessorConfig() *stream.PostgresProcessorCon
 
 	cfg := &stream.PostgresProcessorConfig{
 		BatchWriter: postgres.Config{
-			URL:              c.Target.Postgres.URL,
-			BatchConfig:      c.Target.Postgres.Batch.parseBatchConfig(),
-			DisableTriggers:  c.Target.Postgres.DisableTriggers,
-			OnConflictAction: c.Target.Postgres.OnConflictAction,
-			RetryPolicy:      c.Target.Postgres.RetryPolicy.parseBackoffConfig(),
-			IgnoreDDL:        c.Target.Postgres.IgnoreDDL,
+			URL:                   c.Target.Postgres.URL,
+			MaxConnections:        c.Target.Postgres.MaxConnections,
+			BatchConfig:           c.Target.Postgres.Batch.parseBatchConfig(),
+			DisableTriggers:       c.Target.Postgres.DisableTriggers,
+			OnConflictAction:      c.Target.Postgres.OnConflictAction,
+			RetryPolicy:           c.Target.Postgres.RetryPolicy.parseBackoffConfig(),
+			IgnoreDDL:             c.Target.Postgres.IgnoreDDL,
+			StrictMode:            c.Target.Postgres.StrictMode,
+			IncludeDDLObjectTypes: c.Target.Postgres.IncludeDDLObjectTypes,
+			ExcludeDDLObjectTypes: c.Target.Postgres.ExcludeDDLObjectTypes,
 		},
 	}
 
 	if c.Target.Postgres.BulkIngest != nil {
 		cfg.BatchWriter.BulkIngestEnabled = c.Target.Postgres.BulkIngest.Enabled
 		if cfg.BatchWriter.BulkIngestEnabled {
+			cfg.BatchWriter.BatchConfig.SendConcurrency = c.Target.Postgres.BulkIngest.CopyWorkers
 			applyPostgresBulkBatchDefaults(&cfg.BatchWriter.BatchConfig)
 		}
 	}
@@ -642,6 +763,16 @@ func (c *YAMLConfig) parseSearchProcessorConfig() (*stream.SearchProcessorConfig
 		storeCfg.OpenSearchURL = c.Target.Search.URL
 	default:
 		return nil, errUnsupportedSearchEngine
+	}
+
+	if tlsCfg := c.Target.Search.TLS; tlsCfg != nil {
+		storeCfg.TLS = tls.Config{
+			Enabled:            true,
+			CaCertFile:         tlsCfg.CACert,
+			ClientCertFile:     tlsCfg.ClientCert,
+			ClientKeyFile:      tlsCfg.ClientKey,
+			InsecureSkipVerify: tlsCfg.InsecureSkipVerify,
+		}
 	}
 
 	return &stream.SearchProcessorConfig{
@@ -667,6 +798,7 @@ func (c *YAMLConfig) parseWebhookProcessorConfig() *stream.WebhookProcessorConfi
 		Notifier: notifier.Config{
 			URLWorkerCount: uint(c.Target.Webhooks.Notifier.WorkerCount),
 			ClientTimeout:  time.Duration(c.Target.Webhooks.Notifier.ClientTimeout) * time.Millisecond,
+			StrictMode:     c.Target.Webhooks.Notifier.StrictMode,
 		},
 		SubscriptionServer: server.Config{
 			Address:      c.Target.Webhooks.Subscriptions.Server.Address,
@@ -678,6 +810,10 @@ func (c *YAMLConfig) parseWebhookProcessorConfig() *stream.WebhookProcessorConfi
 	if c.Target.Webhooks.Subscriptions.Store.Cache != nil {
 		streamCfg.SubscriptionStore.CacheEnabled = c.Target.Webhooks.Subscriptions.Store.Cache.Enabled
 		streamCfg.SubscriptionStore.CacheRefreshInterval = time.Duration(c.Target.Webhooks.Subscriptions.Store.Cache.RefreshInterval) * time.Second
+	}
+
+	if c.Target.Webhooks.Notifier.Backoff != nil {
+		streamCfg.Notifier.Backoff = c.Target.Webhooks.Notifier.Backoff.parseBackoffConfig()
 	}
 
 	return streamCfg
@@ -697,8 +833,18 @@ func (c YAMLConfig) parseFilterConfig() *filter.Config {
 		return nil
 	}
 	return &filter.Config{
-		ExcludeTables: c.Modifiers.Filter.ExcludeTables,
-		IncludeTables: c.Modifiers.Filter.IncludeTables,
+		ExcludeTables:    c.Modifiers.Filter.ExcludeTables,
+		IncludeTables:    c.Modifiers.Filter.IncludeTables,
+		SchemaOnlyTables: c.Modifiers.Filter.SchemaOnlyTables,
+	}
+}
+
+func (c YAMLConfig) parseSanitizeConfig() *stream.SanitizeConfig {
+	if c.Modifiers.Sanitize == nil || !c.Modifiers.Sanitize.StripNullCharBytes {
+		return nil
+	}
+	return &stream.SanitizeConfig{
+		StripNullCharBytes: c.Modifiers.Sanitize.StripNullCharBytes,
 	}
 }
 
@@ -718,12 +864,23 @@ func (c TransformationsConfig) parseTransformationConfig() (*transformer.Config,
 		return nil, errUnsupportedTransformationValidationMode
 	}
 
+	var onError string
+	switch c.OnError {
+	case failOnError, passThroughOnError, nullOnError:
+		onError = c.OnError
+	case "":
+		onError = nullOnError
+	default:
+		return nil, errUnsupportedTransformationOnError
+	}
+
 	if c.InferFromSecurityLabels {
 		return &transformer.Config{
 			InferFromSecurityLabels: true,
 			DumpInferredRules:       c.DumpInferredRules,
 			TransformerRules:        nil,
 			ValidationMode:          globalValidationMode,
+			OnError:                 onError,
 		}, nil
 	}
 
@@ -753,9 +910,10 @@ func (c TransformationsConfig) parseTransformationConfig() (*transformer.Config,
 		columnRules := make(map[string]transformer.TransformerRules, len(t.ColumnRules))
 		for column, cr := range t.ColumnRules {
 			columnRules[column] = transformer.TransformerRules{
-				Name:              cr.Name,
-				Parameters:        cr.Parameters,
-				DynamicParameters: cr.DynamicParameters,
+				Name:                cr.Name,
+				Parameters:          cr.Parameters,
+				DynamicParameters:   cr.DynamicParameters,
+				AllowUniquenessLoss: cr.AllowUniquenessLoss,
 			}
 		}
 		rules = append(rules, transformer.TableRules{
@@ -769,6 +927,7 @@ func (c TransformationsConfig) parseTransformationConfig() (*transformer.Config,
 	return &transformer.Config{
 		TransformerRules: rules,
 		ValidationMode:   globalValidationMode,
+		OnError:          onError,
 	}, nil
 }
 
@@ -832,6 +991,7 @@ func (bo *BackoffConfig) parseExponentialBackoffConfig() *backoff.ExponentialCon
 	return &backoff.ExponentialConfig{
 		InitialInterval: time.Duration(bo.Exponential.InitialInterval) * time.Millisecond,
 		MaxInterval:     time.Duration(bo.Exponential.MaxInterval) * time.Millisecond,
+		MaxElapsedTime:  time.Duration(bo.Exponential.MaxElapsedTime) * time.Millisecond,
 		MaxRetries:      uint(bo.Exponential.MaxRetries),
 	}
 }
@@ -862,8 +1022,8 @@ func (bc *BatchConfig) parseBatchConfig() batch.Config {
 	if bc.AutoTune != nil {
 		cfg.AutoTune = batch.AutoTuneConfig{
 			Enabled:              bc.AutoTune.Enabled,
-			MinBatchBytes:        bc.AutoTune.MinBatchBytes,
-			MaxBatchBytes:        bc.AutoTune.MaxBatchBytes,
+			MinBatchBytes:        int64(bc.AutoTune.MinBatchBytes),
+			MaxBatchBytes:        int64(bc.AutoTune.MaxBatchBytes),
 			ConvergenceThreshold: bc.AutoTune.ConvergenceThreshold,
 		}
 	}

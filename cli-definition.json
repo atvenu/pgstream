@@ -2,6 +2,64 @@
   "name": "pgstream",
   "commands": [
     {
+      "name": "check",
+      "short": "[EXPERIMENTAL] Runs pre-migration checks to catch blocking issues before snapshot/run",
+      "use": "check",
+      "example": "\n\tpgstream check -c pg2pg.env\n\tpgstream check -c pg2pg.yaml --json\n\t",
+      "flags": [
+        {
+          "name": "access",
+          "description": "Run access and privilege checks against the source",
+          "default": "false"
+        },
+        {
+          "name": "connectivity",
+          "description": "Run connectivity checks against the configured source and target",
+          "default": "false"
+        },
+        {
+          "name": "json",
+          "description": "Output the check report in JSON format",
+          "default": "false"
+        },
+        {
+          "name": "postgres-url",
+          "description": "Source postgres URL to run checks against",
+          "default": ""
+        },
+        {
+          "name": "replication",
+          "description": "Run replication checks against the source (requires replication slot configured)",
+          "default": "false"
+        },
+        {
+          "name": "resources",
+          "description": "Run resource capacity checks against the source (snapshot connection headroom vs max_connections)",
+          "default": "false"
+        },
+        {
+          "name": "schema",
+          "description": "Run schema compatibility checks against the source",
+          "default": "false"
+        },
+        {
+          "name": "source",
+          "description": "Run only checks that query the source database (ignores the configured target)",
+          "default": "false"
+        },
+        {
+          "name": "target-url",
+          "description": "Target URL to run checks against",
+          "default": ""
+        }
+      ],
+      "subcommands": [],
+      "args": [],
+      "annotations": {
+        "experimental": "true"
+      }
+    },
+    {
       "name": "destroy",
       "short": "It destroys any pgstream setup, removing the replication slot and all the relevant tables/functions/triggers, along with the internal pgstream schema",
       "use": "destroy",
@@ -21,6 +79,11 @@
           "name": "replication-slot",
           "description": "Name of the postgres replication slot to be deleted by pgstream from the source url",
           "default": ""
+        },
+        {
+          "name": "slot-only",
+          "description": "Whether to only drop the replication slot, leaving the pgstream schema and migrations in place",
+          "default": "false"
         },
         {
           "name": "with-injector",
@@ -53,6 +116,16 @@
           "default": ""
         },
         {
+          "name": "slot-only",
+          "description": "Whether to only create the replication slot, without running the database migrations. Useful when creating the slot on a read replica, where the migrations cannot be applied",
+          "default": "false"
+        },
+        {
+          "name": "upgrade",
+          "description": "Clean up v0.9.x state before initializing (idempotent, safe for repeated use)",
+          "default": "false"
+        },
+        {
           "name": "with-injector",
           "description": "Whether to initialise pgstream with the injector database migrations",
           "default": "false"
@@ -67,6 +140,11 @@
       "use": "run",
       "example": "\n\tpgstream run --source postgres --source-url <source-postgres-url> --target postgres --target-url <target-postgres-url> --init\n\tpgstream run --source postgres --source-url <source-postgres-url> --target postgres --target-url <target-postgres-url> --snapshot-tables <schema.table> --reset\n\tpgstream run --source kafka --source-url <kafka-url> --target elasticsearch --target-url <elasticsearch-url>\n\tpgstream run --source postgres --source-url <postgres-url> --target kafka --target-url <kafka-url>\n\tpgstream run --config config.yaml --log-level info\n\tpgstream run --config config.env",
       "flags": [
+        {
+          "name": "data-only",
+          "description": "When used with --snapshot-tables, skip schema restore and only snapshot data (use when schema is already present on target)",
+          "default": "false"
+        },
         {
           "name": "dump-file",
           "description": "File where the pg_dump output will be written if initial snapshot is enabled",
@@ -89,7 +167,7 @@
         },
         {
           "name": "reset",
-          "description": "Whether to reset the target before snapshotting (only for postgres target)",
+          "description": "Whether to reset the target before snapshotting (only for postgres target). Destructive: drops the target objects before the data is copied, so a failed snapshot leaves the target without its previous contents",
           "default": "false"
         },
         {
@@ -118,6 +196,11 @@
           "default": ""
         },
         {
+          "name": "upgrade",
+          "description": "Clean up v0.9.x state before initializing (idempotent, safe for repeated use; implies --init)",
+          "default": "false"
+        },
+        {
           "name": "with-injector",
           "description": "Whether to enable the injection of pgstream metadata to the WAL events. Required for search targets.",
           "default": "false"
@@ -128,9 +211,9 @@
     },
     {
       "name": "snapshot",
-      "short": "Snapshot performs a snapshot of the configured source Postgres database into the configured target",
+      "short": "Snapshot performs a one-time data snapshot of a PostgreSQL database",
       "use": "snapshot",
-      "example": "\n\tpgstream snapshot --postgres-url <postgres-url> --target postgres --target-url <target-url> --tables <schema.table> --reset\n\tpgstream snapshot --config config.yaml --log-level info\n\tpgstream snapshot --config config.env",
+      "example": "  # Snapshot specific tables from a PostgreSQL database to a target PostgreSQL database\n  pgstream snapshot --postgres-url <postgres-url> --target postgres --target-url <target-url> --tables <schema.table> --reset\n  # Snapshot using a YAML configuration file (requires source.postgres.mode: 'snapshot')\n  pgstream snapshot --config config.yaml --log-level info\n  # Snapshot using an environment configuration file\n  pgstream snapshot --config config.env",
       "flags": [
         {
           "name": "dump-file",
@@ -149,7 +232,7 @@
         },
         {
           "name": "reset",
-          "description": "Whether to reset the target before snapshotting (only for postgres target)",
+          "description": "Whether to reset the target before snapshotting (only for postgres target). Destructive: drops the target objects before the data is copied, so a failed snapshot leaves the target without its previous contents",
           "default": "false"
         },
         {
@@ -271,9 +354,19 @@
       "default": ""
     },
     {
+      "name": "log-format",
+      "description": "log output format. One of console, json",
+      "default": "console"
+    },
+    {
       "name": "log-level",
       "description": "log level for the application. One of trace, debug, info, warn, error, fatal, panic",
       "default": "debug"
+    },
+    {
+      "name": "no-color",
+      "description": "disable ANSI color codes in console log output (ignored when --log-format=json)",
+      "default": "false"
     }
   ]
 }

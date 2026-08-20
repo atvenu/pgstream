@@ -8,17 +8,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/xataio/pgstream/internal/health"
 	"github.com/xataio/pgstream/internal/log/zerolog"
+	"github.com/xataio/pgstream/internal/phase"
 	pglib "github.com/xataio/pgstream/internal/postgres"
 	"github.com/xataio/pgstream/pkg/backoff"
 	kafkalib "github.com/xataio/pgstream/pkg/kafka"
 	loglib "github.com/xataio/pgstream/pkg/log"
+	"github.com/xataio/pgstream/pkg/otel"
 	pgsnapshotgenerator "github.com/xataio/pgstream/pkg/snapshot/generator/postgres/data"
 	"github.com/xataio/pgstream/pkg/snapshot/generator/postgres/schema/pgdumprestore"
 	"github.com/xataio/pgstream/pkg/stream"
@@ -28,6 +33,7 @@ import (
 	"github.com/xataio/pgstream/pkg/wal/listener/snapshot/adapter"
 	snapshotbuilder "github.com/xataio/pgstream/pkg/wal/listener/snapshot/builder"
 	"github.com/xataio/pgstream/pkg/wal/processor/batch"
+	"github.com/xataio/pgstream/pkg/wal/processor/filter"
 	"github.com/xataio/pgstream/pkg/wal/processor/injector"
 	kafkaprocessor "github.com/xataio/pgstream/pkg/wal/processor/kafka"
 	"github.com/xataio/pgstream/pkg/wal/processor/postgres"
@@ -49,6 +55,8 @@ var (
 const (
 	withGeneratedColumn = true
 )
+
+var integrationReplicationSlotCounter uint64
 
 type mockProcessor struct {
 	eventChan   chan *wal.Event
@@ -93,19 +101,100 @@ func (m *mockWebhookServer) close() {
 }
 
 func runStream(t *testing.T, ctx context.Context, cfg *stream.Config) {
-	// start the configured stream listener/processor
+	t.Helper()
+	runStreamWithInstrumentation(t, ctx, cfg, nil)
+}
+
+// runStreamWithInstrumentation runs the stream with metrics wired up, so that
+// tests can observe what the pipeline exports while it is running.
+func runStreamWithInstrumentation(t *testing.T, ctx context.Context, cfg *stream.Config, instrumentation *otel.Instrumentation) {
+	t.Helper()
+
+	done := make(chan error, 1)
 	go func() {
-		err := stream.Run(ctx, testLogger(), cfg, false, nil)
-		require.NoError(t, err)
+		done <- stream.Run(ctx, testLogger(), cfg, false, instrumentation)
 	}()
+
+	t.Cleanup(func() {
+		select {
+		case err := <-done:
+			require.NoError(t, err)
+		case <-time.After(10 * time.Second):
+			t.Error("timeout waiting for stream to stop")
+		}
+	})
 }
 
 func runSnapshot(t *testing.T, ctx context.Context, cfg *stream.Config) {
-	// start the configured stream listener/processor
+	t.Helper()
+
+	done := make(chan error, 1)
 	go func() {
-		err := stream.Snapshot(ctx, testLogger(), cfg, nil)
-		require.NoError(t, err)
+		done <- stream.Snapshot(ctx, testLogger(), cfg, nil)
 	}()
+
+	t.Cleanup(func() {
+		select {
+		case err := <-done:
+			require.NoError(t, err)
+		case <-time.After(10 * time.Second):
+			t.Error("timeout waiting for snapshot to stop")
+		}
+	})
+}
+
+func startPhaseHealthServer(t *testing.T, tracker *phase.Tracker) (statusURL string, stop func()) {
+	t.Helper()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := ln.Addr().String()
+	require.NoError(t, ln.Close())
+
+	srv := health.NewServer(health.Config{Address: addr}, nil,
+		health.WithVersion("test"),
+		health.WithPhaseProvider(func() string {
+			return string(tracker.Get())
+		}),
+	)
+	require.NoError(t, srv.Listen())
+
+	go func() {
+		if err := srv.Serve(); err != nil {
+			t.Logf("health server stopped: %v", err)
+		}
+	}()
+
+	return "http://" + addr + "/status", func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		require.NoError(t, srv.Shutdown(shutdownCtx))
+	}
+}
+
+func fetchStatusPhase(t *testing.T, statusURL string) string {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, statusURL, nil)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+
+	var body map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return ""
+	}
+	return body["phase"]
 }
 
 func initStream(t *testing.T, ctx context.Context, url string) {
@@ -135,15 +224,53 @@ func testLogger() loglib.Logger {
 	}))
 }
 
-func testPostgresListenerCfg() stream.ListenerConfig {
+func testPostgresListenerCfg(t *testing.T) stream.ListenerConfig {
+	t.Helper()
+
+	slotName := initReplicationSlotForTest(t, pgurl)
 	return stream.ListenerConfig{
 		Postgres: &stream.PostgresListenerConfig{
 			URL: pgurl,
 			Replication: pgreplication.Config{
-				PostgresURL: pgurl,
+				PostgresURL:         pgurl,
+				ReplicationSlotName: slotName,
 			},
 		},
 	}
+}
+
+func initReplicationSlotForTest(t *testing.T, url string) string {
+	t.Helper()
+
+	slotName := fmt.Sprintf("pgstream_it_%d_%d", time.Now().UnixNano(), atomic.AddUint64(&integrationReplicationSlotCounter, 1))
+	require.NoError(t, stream.Init(context.Background(), &stream.InitConfig{
+		PostgresURL:         url,
+		ReplicationSlotName: slotName,
+	}))
+
+	t.Cleanup(func() {
+		dropReplicationSlotForTest(t, url, slotName)
+	})
+
+	return slotName
+}
+
+func dropReplicationSlotForTest(t *testing.T, url, slotName string) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		conn, err := pglib.NewConn(ctx, url)
+		if err != nil {
+			return false
+		}
+		defer conn.Close(ctx)
+
+		_, err = conn.Exec(ctx, `SELECT pg_drop_replication_slot(slot_name) FROM pg_replication_slots WHERE slot_name = $1`, slotName)
+		return err == nil
+	}, 10*time.Second, 200*time.Millisecond, "replication slot %s was not dropped", slotName)
 }
 
 func testPostgresListenerCfgWithSnapshot(sourceURL, targetURL string, tables []string) stream.ListenerConfig {
@@ -231,11 +358,59 @@ func withBulkIngestionEnabled() option {
 	}
 }
 
+func withStrictMode() option {
+	return func(cfg *stream.ProcessorConfig) {
+		if cfg.Postgres != nil {
+			cfg.Postgres.BatchWriter.StrictMode = true
+		}
+	}
+}
+
+func withIgnoreSendErrors() option {
+	return func(cfg *stream.ProcessorConfig) {
+		if cfg.Postgres != nil {
+			cfg.Postgres.BatchWriter.BatchConfig.IgnoreSendErrors = true
+		}
+	}
+}
+
+func withBatchSize(maxBatchSize int64) option {
+	return func(cfg *stream.ProcessorConfig) {
+		if cfg.Postgres != nil {
+			cfg.Postgres.BatchWriter.BatchConfig.MaxBatchSize = maxBatchSize
+		}
+	}
+}
+
+func withFilter(filterCfg *filter.Config) option {
+	return func(cfg *stream.ProcessorConfig) {
+		cfg.Filter = filterCfg
+	}
+}
+
+func withDDLObjectTypeFilter(include []string) option {
+	return func(cfg *stream.ProcessorConfig) {
+		if cfg.Postgres != nil {
+			cfg.Postgres.BatchWriter.IncludeDDLObjectTypes = include
+		}
+	}
+}
+
+func testPostgresListenerCfgWithSnapshotAndFilter(sourceURL, targetURL string, tables []string, includeObjectTypes []string) stream.ListenerConfig {
+	cfg := testPostgresListenerCfgWithSnapshot(sourceURL, targetURL, tables)
+	cfg.Postgres.Snapshot.Schema.DumpRestore.IncludeObjectTypes = includeObjectTypes
+	return cfg
+}
+
 func testPostgresProcessorCfg(opts ...option) stream.ProcessorConfig {
+	return testPostgresProcessorCfgWithTargetURL(targetPGURL, opts...)
+}
+
+func testPostgresProcessorCfgWithTargetURL(targetURL string, opts ...option) stream.ProcessorConfig {
 	cfg := stream.ProcessorConfig{
 		Postgres: &stream.PostgresProcessorConfig{
 			BatchWriter: postgres.Config{
-				URL: targetPGURL,
+				URL: targetURL,
 				BatchConfig: batch.Config{
 					MaxBatchSize: 1,
 					// BatchTimeout: 50 * time.Millisecond,

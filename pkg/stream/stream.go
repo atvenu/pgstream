@@ -17,9 +17,11 @@ import (
 	processinstrumentation "github.com/xataio/pgstream/pkg/wal/processor/instrumentation"
 	kafkaprocessor "github.com/xataio/pgstream/pkg/wal/processor/kafka"
 	pgwriter "github.com/xataio/pgstream/pkg/wal/processor/postgres"
+	"github.com/xataio/pgstream/pkg/wal/processor/sanitizer"
 	"github.com/xataio/pgstream/pkg/wal/processor/search"
 	searchinstrumentation "github.com/xataio/pgstream/pkg/wal/processor/search/instrumentation"
 	"github.com/xataio/pgstream/pkg/wal/processor/search/store"
+	stdoutwriter "github.com/xataio/pgstream/pkg/wal/processor/stdout"
 	"github.com/xataio/pgstream/pkg/wal/processor/transformer"
 	webhooknotifier "github.com/xataio/pgstream/pkg/wal/processor/webhook/notifier"
 	subscriptionserver "github.com/xataio/pgstream/pkg/wal/processor/webhook/subscription/server"
@@ -71,12 +73,14 @@ func buildProcessor(ctx context.Context, logger loglib.Logger, config *Processor
 			}
 		}
 
-		searchIndexer, err := search.NewBatchIndexer(ctx,
+		searchIndexer, err := search.NewBatchIndexer(
+			ctx,
 			config.Search.Indexer,
 			searchStore,
 			pgreplication.NewLSNParser(),
 			search.WithCheckpoint(checkpoint),
 			search.WithLogger(logger),
+			search.WithInstrumentation(instrumentation),
 		)
 		if err != nil {
 			return nil, err
@@ -88,7 +92,8 @@ func buildProcessor(ctx context.Context, logger loglib.Logger, config *Processor
 
 		var subscriptionStore webhookstore.Store
 		var err error
-		subscriptionStore, err = pgwebhook.NewSubscriptionStore(ctx,
+		subscriptionStore, err = pgwebhook.NewSubscriptionStore(
+			ctx,
 			config.Webhook.SubscriptionStore.URL,
 			pgwebhook.WithLogger(logger),
 		)
@@ -112,13 +117,15 @@ func buildProcessor(ctx context.Context, logger loglib.Logger, config *Processor
 			&config.Webhook.Notifier,
 			subscriptionStore,
 			webhooknotifier.WithLogger(logger),
-			webhooknotifier.WithCheckpoint(checkpoint))
+			webhooknotifier.WithCheckpoint(checkpoint),
+		)
 		processor = notifier
 
 		subscriptionServer := subscriptionserver.New(
 			&config.Webhook.SubscriptionServer,
 			subscriptionStore,
-			subscriptionserver.WithLogger(logger))
+			subscriptionserver.WithLogger(logger),
+		)
 
 		go func() {
 			defer logger.Info("stopping subscription server...")
@@ -165,6 +172,13 @@ func buildProcessor(ctx context.Context, logger loglib.Logger, config *Processor
 			processor = pgBatchWriter
 		}
 
+	case config.Stdout != nil:
+		logger.Info("stdout processor configured")
+		processor = stdoutwriter.NewWriter(
+			stdoutwriter.WithLogger(logger),
+			stdoutwriter.WithCheckpoint(checkpoint),
+		)
+
 	default:
 		return nil, errors.New("no supported processor found")
 	}
@@ -172,9 +186,68 @@ func buildProcessor(ctx context.Context, logger loglib.Logger, config *Processor
 	return processor, nil
 }
 
-func addProcessorModifiers(ctx context.Context, config *Config, logger loglib.Logger, processor processor.Processor, instrumentation *otel.Instrumentation) (processor.Processor, closerFn, error) {
+// modifier is a layer wrapped around the target writer. rowVisible reports
+// whether it observes or changes row data: such a layer must see every row, so
+// a fast path that bypasses the chain is only correct without one.
+type modifier struct {
+	rowVisible bool
+}
+
+var (
+	modifierSanitizer       = modifier{rowVisible: true}
+	modifierTransformer     = modifier{rowVisible: true}
+	modifierInjector        = modifier{rowVisible: true}
+	modifierFilter          = modifier{rowVisible: true}
+	modifierInstrumentation = modifier{}
+)
+
+// processorChain is a target writer with the modifier layers wrapped around
+// it. It records which layers were applied, so a fast path that bypasses the
+// chain can tell whether bypassing it is safe.
+type processorChain struct {
+	processor processor.Processor
+	applied   []modifier
+}
+
+// apply wraps the current processor in a new layer and records it. It is the
+// only way to extend the chain: a layer cannot be added without naming a
+// modifier, which forces whoever adds one to decide whether it is row
+// visible. Recording happens where the wrapping happens, so a layer that is
+// configured but not actually applied is not recorded either.
+func (c *processorChain) apply(m modifier, wrap func(processor.Processor) (processor.Processor, error)) error {
+	p, err := wrap(c.processor)
+	if err != nil {
+		return err
+	}
+	c.processor = p
+	c.applied = append(c.applied, m)
+	return nil
+}
+
+// hasRowVisibleLayers reports whether any applied layer must see every row.
+// When false, rows may be written straight to the target, bypassing the chain.
+func (c *processorChain) hasRowVisibleLayers() bool {
+	for _, m := range c.applied {
+		if m.rowVisible {
+			return true
+		}
+	}
+	return false
+}
+
+func addProcessorModifiers(ctx context.Context, config *Config, logger loglib.Logger, target processor.Processor, instrumentation *otel.Instrumentation) (*processorChain, closerFn, error) {
 	closerAgg := &closerAggregator{}
-	var err error
+	chain := &processorChain{processor: target}
+
+	if config.Processor.Sanitize != nil && config.Processor.Sanitize.StripNullCharBytes {
+		logger.Info("adding null byte sanitizer to processor...")
+		if err := chain.apply(modifierSanitizer, func(p processor.Processor) (processor.Processor, error) {
+			return sanitizer.New(p, sanitizer.WithLogger(logger)), nil
+		}); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	if config.Processor.Transformer != nil {
 		logger.Info("adding transformation layer to processor...")
 		builderOpts := []builder.Option{}
@@ -188,12 +261,24 @@ func addProcessorModifiers(ctx context.Context, config *Config, logger loglib.Lo
 		pgURL := config.SourcePostgresURL()
 		if pgURL != "" {
 			var parser transformer.ParseFn
-			pgParser, err := transformer.NewPostgresTransformerParser(ctx, pgURL, transformerBuilder, config.RequiredTables())
+			parserOpts := []transformer.ParserOption{}
+			// only a postgres target enforces the source's unique indexes
+			if config.Processor.Postgres != nil {
+				parserOpts = append(parserOpts, transformer.WithUniquenessEnforcement())
+			}
+			pgParser, err := transformer.NewPostgresTransformerParser(ctx, pgURL, transformerBuilder, config.RequiredTables(), parserOpts...)
 			if err != nil {
 				return nil, nil, fmt.Errorf("creating transformer validator: %w", err)
 			}
 			closerAgg.addCloserFn(pgParser.Close)
-			parser = pgParser.ParseAndValidate
+			// warnings only reach the caller here
+			parser = func(ctx context.Context, rules transformer.Rules) (*transformer.TransformerMap, error) {
+				transformerMap, err := pgParser.ParseAndValidate(ctx, rules)
+				for _, warning := range pgParser.Warnings() {
+					logger.Warn(nil, warning)
+				}
+				return transformerMap, err
+			}
 
 			// wrap the parser to add inferred rules if enabled. This requires a
 			// live connection to the source db and will query the security
@@ -211,8 +296,9 @@ func addProcessorModifiers(ctx context.Context, config *Config, logger loglib.Lo
 
 			opts = append(opts, transformer.WithParser(parser))
 		}
-		processor, err = transformer.New(ctx, config.Processor.Transformer, processor, transformerBuilder, opts...)
-		if err != nil {
+		if err := chain.apply(modifierTransformer, func(p processor.Processor) (processor.Processor, error) {
+			return transformer.New(ctx, config.Processor.Transformer, p, transformerBuilder, opts...)
+		}); err != nil {
 			logger.Error(err, "creating transformer layer")
 			return nil, nil, err
 		}
@@ -226,31 +312,31 @@ func addProcessorModifiers(ctx context.Context, config *Config, logger loglib.Lo
 		if instrumentation.IsEnabled() {
 			opts = append(opts, injector.WithInstrumentation(instrumentation))
 		}
-		processor, err = injector.New(ctx, config.Processor.Injector, processor, opts...)
-		if err != nil {
+		if err := chain.apply(modifierInjector, func(p processor.Processor) (processor.Processor, error) {
+			return injector.New(ctx, config.Processor.Injector, p, opts...)
+		}); err != nil {
 			return nil, nil, fmt.Errorf("error creating processor injection layer: %w", err)
 		}
 	}
 
 	if config.Processor.Filter != nil {
 		logger.Info("adding filtering to processor...")
-		var err error
-		processor, err = filter.New(processor, config.Processor.Filter,
-			filter.WithLogger(logger))
-		if err != nil {
+		if err := chain.apply(modifierFilter, func(p processor.Processor) (processor.Processor, error) {
+			return filter.New(p, config.Processor.Filter, filter.WithLogger(logger))
+		}); err != nil {
 			return nil, nil, err
 		}
 	}
 
-	if processor != nil && instrumentation.IsEnabled() {
-		var err error
-		processor, err = processinstrumentation.NewProcessor(processor, instrumentation)
-		if err != nil {
+	if chain.processor != nil && instrumentation.IsEnabled() {
+		if err := chain.apply(modifierInstrumentation, func(p processor.Processor) (processor.Processor, error) {
+			return processinstrumentation.NewProcessor(p, instrumentation)
+		}); err != nil {
 			return nil, nil, err
 		}
 	}
 
-	return processor, closerAgg.close, nil
+	return chain, closerAgg.close, nil
 }
 
 type closerAggregator struct {

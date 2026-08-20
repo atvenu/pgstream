@@ -14,44 +14,47 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func Snapshot(ctx context.Context, logger loglib.Logger, config *Config, instrumentation *otel.Instrumentation) error {
+// Snapshot performs a one-time data snapshot. This call is blocking.
+// Pass WithPhaseTracker to expose the snapshot phase via /status and metrics.
+func Snapshot(ctx context.Context, logger loglib.Logger, config *Config, instrumentation *otel.Instrumentation, opts ...InitOption) error {
 	if config.Listener.Postgres == nil {
-		return errors.New("source postgres snapshot not configured")
+		return errors.New("source postgres snapshot not configured: ensure source.postgres is set")
 	}
 
 	if err := config.IsValid(); err != nil {
 		return fmt.Errorf("incompatible configuration: %w", err)
 	}
 
+	tracker := config.GetInitConfig(opts...).PhaseTracker
+
+	if err := registerPhaseMetric(instrumentation, tracker); err != nil {
+		return fmt.Errorf("registering pipeline phase metric: %w", err)
+	}
+
 	eg, ctx := errgroup.WithContext(ctx)
 
 	// Processor
 
-	processor, err := buildProcessor(ctx, logger, &config.Processor, nil, processorTypeSnapshot, instrumentation)
-	if err != nil {
-		return err
-	}
-	defer processor.Close()
-
-	var closer closerFn
-	processor, closer, err = addProcessorModifiers(ctx, config, logger, processor, instrumentation)
-	if err != nil {
-		return err
-	}
+	chain, closer, err := newProcessor(ctx, logger, config, nil, processorTypeSnapshot, instrumentation)
 	defer closer()
+	if err != nil {
+		return err
+	}
 
 	// Listener
 
+	config.applySnapshotRawJSONValues()
 	snapshotGenerator, err := snapshotbuilder.NewSnapshotGenerator(
 		ctx,
 		config.Listener.Postgres.Snapshot,
-		processor,
+		chain.processor,
 		logger,
-		instrumentation)
+		instrumentation,
+		config.restoreConflictTargetsBeforeData())
 	if err != nil {
 		return err
 	}
-	listener := snapshotlistener.New(snapshotGenerator)
+	listener := snapshotlistener.New(snapshotGenerator, snapshotlistener.WithPhaseTracker(tracker))
 	defer listener.Close()
 
 	eg.Go(func() error {

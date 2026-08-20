@@ -16,24 +16,14 @@ type Pool struct {
 
 type PoolOption func(*pgxpool.Config)
 
-const maxConns = 50
+// MaxConns is the default maximum number of connections in a Postgres
+// connection pool.
+const MaxConns = 50
 
 func NewConnPool(ctx context.Context, url string, opts ...PoolOption) (*Pool, error) {
-	escapedURL, err := escapeConnectionURL(url)
+	pgCfg, err := newConnPoolConfig(url, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to escape connection URL: %w", err)
-	}
-	pgCfg, err := pgxpool.ParseConfig(escapedURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed parsing postgres connection string: %w", MapError(err))
-	}
-	pgCfg.MaxConns = maxConns
-	pgCfg.AfterConnect = registerTypesToConnMap
-
-	configureTCPKeepalive(pgCfg.ConnConfig)
-
-	for _, opt := range opts {
-		opt(pgCfg)
+		return nil, err
 	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, pgCfg)
@@ -44,9 +34,72 @@ func NewConnPool(ctx context.Context, url string, opts ...PoolOption) (*Pool, er
 	return &Pool{Pool: pool}, nil
 }
 
+func newConnPoolConfig(url string, opts ...PoolOption) (*pgxpool.Config, error) {
+	escapedURL, err := escapeConnectionURL(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to escape connection URL: %w", err)
+	}
+	connCfg, err := pgx.ParseConfig(escapedURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed parsing postgres connection string: %w", MapError(err))
+	}
+	_, maxConnsConfigured := connCfg.RuntimeParams["pool_max_conns"]
+
+	pgCfg, err := pgxpool.ParseConfig(escapedURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed parsing postgres connection string: %w", MapError(err))
+	}
+	if !maxConnsConfigured {
+		pgCfg.MaxConns = MaxConns
+	}
+	pgCfg.AfterConnect = registerTypesToConnMap
+
+	configureTCPKeepalive(pgCfg.ConnConfig)
+
+	for _, opt := range opts {
+		opt(pgCfg)
+	}
+
+	return pgCfg, nil
+}
+
+// ConnPoolMaxConnections returns the resolved maximum number of connections
+// after applying the connection string, the pgstream default, and pool options.
+func ConnPoolMaxConnections(url string, opts ...PoolOption) (int32, error) {
+	pgCfg, err := newConnPoolConfig(url, opts...)
+	if err != nil {
+		return 0, err
+	}
+	return pgCfg.MaxConns, nil
+}
+
 func WithMaxConnections(maxConns int32) PoolOption {
 	return func(cfg *pgxpool.Config) {
 		cfg.MaxConns = maxConns
+	}
+}
+
+// WithRawJSONDecoding makes json/jsonb column values decode to their raw text
+// representation (Go string) instead of being unmarshalled into Go values
+// (maps, slices, nil). Intended for read paths that need byte-faithful
+// values: the default unmarshalling turns the JSON null value ('null'::jsonb)
+// into Go nil, making it indistinguishable from SQL NULL, and re-marshalling
+// can reorder object keys.
+//
+// Write paths must not use this option: it rebinds json/jsonb to a text-only
+// codec, which would corrupt binary COPY encoding of those types.
+func WithRawJSONDecoding() PoolOption {
+	return func(cfg *pgxpool.Config) {
+		prevAfterConnect := cfg.AfterConnect
+		cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+			if prevAfterConnect != nil {
+				if err := prevAfterConnect(ctx, conn); err != nil {
+					return err
+				}
+			}
+			registerRawJSONDecoding(conn)
+			return nil
+		}
 	}
 }
 

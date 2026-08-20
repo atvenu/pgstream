@@ -38,6 +38,7 @@ func Test_EnvVarsToStreamConfig(t *testing.T) {
 	os.Setenv("PGSTREAM_POSTGRES_SNAPSHOT_STORE_REPEATABLE", "true")
 	os.Setenv("PGSTREAM_POSTGRES_SNAPSHOT_TABLES", "test test_schema.Test another_schema.*")
 	os.Setenv("PGSTREAM_POSTGRES_SNAPSHOT_EXCLUDED_TABLES", "test_schema.Test")
+	os.Setenv("PGSTREAM_POSTGRES_SNAPSHOT_SCHEMA_ONLY_TABLES", "schema_only_test schema_only_schema.*")
 	os.Setenv("PGSTREAM_POSTGRES_SNAPSHOT_WORKERS", "4")
 	os.Setenv("PGSTREAM_POSTGRES_SNAPSHOT_MAX_CONNECTIONS", "20")
 	os.Setenv("PGSTREAM_POSTGRES_SNAPSHOT_SCHEMA_WORKERS", "4")
@@ -51,6 +52,7 @@ func Test_EnvVarsToStreamConfig(t *testing.T) {
 	os.Setenv("PGSTREAM_POSTGRES_SNAPSHOT_SCHEMA_DUMP_FILE", "pg_dump.sql")
 	os.Setenv("PGSTREAM_POSTGRES_SNAPSHOT_NO_OWNER", "true")
 	os.Setenv("PGSTREAM_POSTGRES_SNAPSHOT_MODE", "full")
+	os.Setenv("PGSTREAM_POSTGRES_SNAPSHOT_INDEX_CONSTRAINT_SESSION_SETTINGS", "maintenance_work_mem=4GB max_parallel_maintenance_workers=4 synchronous_commit=off statement_timeout=0 lock_timeout=0")
 	os.Setenv("PGSTREAM_POSTGRES_SNAPSHOT_DISABLE_PROGRESS_TRACKING", "true")
 
 	os.Setenv("PGSTREAM_KAFKA_READER_SERVERS", "localhost:9092")
@@ -66,6 +68,7 @@ func Test_EnvVarsToStreamConfig(t *testing.T) {
 	os.Setenv("PGSTREAM_KAFKA_TLS_CLIENT_KEY_FILE", "/path/to/client.key")
 
 	os.Setenv("PGSTREAM_POSTGRES_WRITER_TARGET_URL", "postgresql://user:password@localhost:5432/mytargetdatabase")
+	os.Setenv("PGSTREAM_POSTGRES_WRITER_MAX_CONNECTIONS", "60")
 	os.Setenv("PGSTREAM_POSTGRES_WRITER_BATCH_SIZE", "100")
 	os.Setenv("PGSTREAM_POSTGRES_WRITER_BATCH_TIMEOUT", "1s")
 	os.Setenv("PGSTREAM_POSTGRES_WRITER_MAX_QUEUE_BYTES", "204800")
@@ -73,6 +76,7 @@ func Test_EnvVarsToStreamConfig(t *testing.T) {
 	os.Setenv("PGSTREAM_POSTGRES_WRITER_DISABLE_TRIGGERS", "false")
 	os.Setenv("PGSTREAM_POSTGRES_WRITER_ON_CONFLICT_ACTION", "nothing")
 	os.Setenv("PGSTREAM_POSTGRES_WRITER_BULK_INGEST_ENABLED", "true")
+	os.Setenv("PGSTREAM_POSTGRES_WRITER_STRICT_MODE", "true")
 
 	os.Setenv("PGSTREAM_KAFKA_WRITER_SERVERS", "localhost:9092")
 	os.Setenv("PGSTREAM_KAFKA_TOPIC_PARTITIONS", "1")
@@ -105,6 +109,7 @@ func Test_EnvVarsToStreamConfig(t *testing.T) {
 	os.Setenv("PGSTREAM_TRANSFORMER_RULES_FILE", "test/test_transformer_rules.yaml")
 	os.Setenv("PGSTREAM_FILTER_INCLUDE_TABLES", "test test_schema.test another_schema.*")
 	os.Setenv("PGSTREAM_FILTER_EXCLUDE_TABLES", "excluded_test excluded_schema.test another_excluded_schema.*")
+	os.Setenv("PGSTREAM_FILTER_SCHEMA_ONLY_TABLES", "schema_only_test schema_only_schema.*")
 
 	streamConfig, err := envConfigToStreamConfig()
 	assert.NoError(t, err)
